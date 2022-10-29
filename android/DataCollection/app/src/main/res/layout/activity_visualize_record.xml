@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:context=".visual.VisualizeRecordActivity"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <com.github.mikephil.charting.charts.LineChart
+            android:id="@+id/visual_acc_chart"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/visual_chart_height"
+            android:layout_marginVertical="@dimen/visual_chart_margin_vertical"
+            android:layout_marginHorizontal="@dimen/add_task_margin_horizontal"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintBottom_toTopOf="@id/visual_mag_chart"/>
+
+        <com.github.mikephil.charting.charts.LineChart
+            android:id="@+id/visual_mag_chart"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/visual_chart_height"
+            android:layout_marginVertical="@dimen/visual_chart_margin_vertical"
+            android:layout_marginHorizontal="@dimen/add_task_margin_horizontal"
+            app:layout_constraintTop_toBottomOf="@id/visual_acc_chart"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintBottom_toTopOf="@id/visual_gyro_chart"/>
+
+        <com.github.mikephil.charting.charts.LineChart
+            android:id="@+id/visual_gyro_chart"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/visual_chart_height"
+            android:layout_marginVertical="@dimen/visual_chart_margin_vertical"
+            android:layout_marginHorizontal="@dimen/add_task_margin_horizontal"
+            app:layout_constraintTop_toBottomOf="@id/visual_mag_chart"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintBottom_toTopOf="@id/visual_linear_acc_chart"/>
+
+        <com.github.mikephil.charting.charts.LineChart
+            android:id="@+id/visual_linear_acc_chart"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/visual_chart_height"
+            android:layout_marginVertical="@dimen/visual_chart_margin_vertical"
+            android:layout_marginHorizontal="@dimen/add_task_margin_horizontal"
+            app:layout_constraintTop_toBottomOf="@id/visual_gyro_chart"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintBottom_toTopOf="@id/visual_light_chart"/>
+
+        <com.github.mikephil.charting.charts.LineChart
+            android:id="@+id/visual_light_chart"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/visual_chart_height"
+            android:layout_marginVertical="@dimen/visual_chart_margin_vertical"
+            android:layout_marginHorizontal="@dimen/add_task_margin_horizontal"
+            app:layout_constraintTop_toBottomOf="@id/visual_linear_acc_chart"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"/>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</ScrollView>
