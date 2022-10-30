@@ -44,16 +44,16 @@ public class MainActivity extends AppCompatActivity {
 
     // ui
     private EditText mUserText;
-    private Button mBtnStart;
-    private Button mBtnCancel;
-    private TextView mTaskDescription;
-    private TextView mTaskCounter;
-
     private Spinner mTaskSpinner;
     private ArrayAdapter<String> mTaskAdapter;
-
     private Spinner mSubtaskSpinner;
     private ArrayAdapter<String> mSubtaskAdapter;
+    private TextView mTaskDescription;
+    private TextView mTaskCounter;
+    private Button mBtnStart;
+    private Button mBtnCancel;
+    private Button mBtnConfig;
+    private Button mBtnAccess;
 
     // task
     private TaskListBean mTaskList;  // queried from the backend
@@ -63,22 +63,12 @@ public class MainActivity extends AppCompatActivity {
     private int mCurrentSubtaskId = 0;
     private int mCurrentTic = 0;    // tic showed in task counter
     private int mTotalTics = 0;      // mCurrentTic / mTotalTic
-
-//    private boolean mIsVideo;
-//    private boolean mIsAudio;
-//    private int mLensFacing;
-
-//    private CheckBox mVideoSwitch;
-//    private CheckBox mAudioSwitch;
-
     private Recorder mRecorder;
 
     // permission
     private static final int RC_PERMISSIONS = 0;
     private String[] mPermissions = new String[]{
             Manifest.permission.INTERNET,
-            Manifest.permission.RECORD_AUDIO,
-            Manifest.permission.CAMERA,
             Manifest.permission.VIBRATE,
             Manifest.permission.READ_EXTERNAL_STORAGE,
             Manifest.permission.WRITE_EXTERNAL_STORAGE,
@@ -121,26 +111,11 @@ public class MainActivity extends AppCompatActivity {
         });
 
         // jump to accessibility settings
-        Button btnAccess = findViewById(R.id.btn_access);
-        btnAccess.setOnClickListener((v) -> {
+        mBtnAccess = findViewById(R.id.btn_access);
+        mBtnAccess.setOnClickListener((v) -> {
             Intent settingIntent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
             startActivity(settingIntent);
         });
-
-//        Button btnUpgrade = findViewById(R.id.btn_upgrade);
-//        btnUpgrade.setOnClickListener((v) -> {
-//            MainService.getInstance().upgrade();
-//        });
-//        // TODO: disable upgrade button if do not use the context library
-//        btnUpgrade.setEnabled(false);
-
-        // goto test activity
-//        Button btnTest = findViewById(R.id.btn_test);
-//        btnTest.setOnClickListener((v) -> {
-//            Intent intent = new Intent(MainActivity.this, TestModelActivity.class);
-//            startActivity(intent);
-//        });
-//        btnTest.setEnabled(false);
 
         mInferencer = Inferencer.getInstance();
         mInferencer.start(this);
@@ -187,17 +162,14 @@ public class MainActivity extends AppCompatActivity {
      */
     @AfterPermissionGranted(RC_PERMISSIONS)
     private void requestPermissions() {
-        if (EasyPermissions.hasPermissions(this, mPermissions)) {
-            // have permissions
-        } else {
+        if (!EasyPermissions.hasPermissions(this, mPermissions)) {
             // no permissions, request dynamically
-            EasyPermissions.requestPermissions(
-                    new PermissionRequest.Builder(this, RC_PERMISSIONS, mPermissions)
-                            .setRationale(R.string.rationale)
-                            .setPositiveButtonText(R.string.rationale_ask_ok)
-                            .setNegativeButtonText(R.string.rationale_ask_cancel)
-                            .setTheme(R.style.Theme_AppCompat)
-                            .build());
+            EasyPermissions.requestPermissions(new PermissionRequest.Builder(
+                    this, RC_PERMISSIONS, mPermissions)
+                    .setRationale(R.string.rationale)
+                    .setPositiveButtonText(R.string.rationale_ask_ok)
+                    .setNegativeButtonText(R.string.rationale_ask_cancel)
+                    .setTheme(R.style.Theme_AppCompat).build());
         }
     }
 
@@ -235,12 +207,9 @@ public class MainActivity extends AppCompatActivity {
             public void onNothingSelected(AdapterView<?> parent) {}
         });
 
-        if (mTaskNames.length == 0) {
-            mSubtaskNames = new String[0];
-        }
-        else {
-            mSubtaskNames = mTaskList.getTasks().get(mCurrentTaskId).getSubtaskNames();
-        }
+        if (mTaskNames.length == 0) mSubtaskNames = new String[0];
+        else mSubtaskNames = mTaskList.getTasks().get(mCurrentTaskId).getSubtaskNames();
+
         mSubtaskAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, mSubtaskNames);
         mSubtaskAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         mSubtaskSpinner.setAdapter(mSubtaskAdapter);
@@ -259,16 +228,6 @@ public class MainActivity extends AppCompatActivity {
                 mCurrentTic = 0;
                 mTotalTics = currentSubtask.getTimes();
                 updateTaskCounter();
-                // modified, only depend on the subtask
-//                if (mIsVideo && currentSubtask.isVideo() && mLensFacing != currentSubtask.getLensFacing()) {
-//                    mRecorder.setCamera(false, 0);
-//                    mRecorder.setCamera(mIsVideo, currentSubtask.getLensFacing());
-//                }
-//                mLensFacing = currentSubtask.getLensFacing();
-//                mIsVideo = currentSubtask.isVideo();
-//                mVideoSwitch.setChecked(mIsVideo);
-//                mIsAudio = currentSubtask.isAudio();
-//                mAudioSwitch.setChecked(mIsAudio);
             }
 
             @Override
@@ -276,39 +235,19 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // video switch
-//        mVideoSwitch = findViewById(R.id.video_switch);
-//        mVideoSwitch.setOnCheckedChangeListener((compoundButton, b) -> {
-//            Log.e("Camera", b + " " + mLensFacing);
-//            mRecorder.setCamera(b, mLensFacing);
-//        });
-//        mVideoSwitch.setEnabled(false); // disabled
-
-        // audio switch
-//        mAudioSwitch = findViewById(R.id.audio_switch);
-//        mAudioSwitch.setEnabled(false); // disabled
-
         // btn start and cancel
         mBtnStart = findViewById(R.id.btn_start);
         mBtnCancel = findViewById(R.id.btn_cancel);
-
-        Button btnConfig = findViewById(R.id.btn_config);
-//        Button btnTrain = findViewById(R.id.btn_train);
-//        Button btnVisual = findViewById(R.id.btn_visual);
-//        btnTrain.setEnabled(false);
-//        btnVisual.setEnabled(false);
+        mBtnConfig = findViewById(R.id.btn_config);
+        mBtnAccess = findViewById(R.id.btn_access);
 
         // click the start button to start recorder
         mBtnStart.setOnClickListener(view -> {
             if (mCurrentTaskId < mTaskList.getTasks().size() &&
-                mCurrentSubtaskId < mTaskList.getTasks().get(mCurrentTaskId).getSubtasks().size()) {
+                    mCurrentSubtaskId < mTaskList.getTasks().get(mCurrentTaskId).getSubtasks().size()) {
                 enableButtons(true);
-                mRecorder.start(
-                        mUserText.getText().toString(),
-                        mCurrentTaskId,
-                        mCurrentSubtaskId,
-                        mTaskList
-                );
+                mRecorder.start(mUserText.getText().toString(), mCurrentTaskId,
+                        mCurrentSubtaskId, mTaskList);
             }
         });
 
@@ -321,22 +260,16 @@ public class MainActivity extends AppCompatActivity {
         });
 
         // goto config task activity
-        btnConfig.setOnClickListener(view -> {
+        mBtnConfig.setOnClickListener(view -> {
             Intent intent = new Intent(MainActivity.this, ConfigTaskActivity.class);
             startActivity(intent);
         });
 
-        // goto train activity
-//        btnTrain.setOnClickListener(view -> {
-//            Intent intent = new Intent(MainActivity.this, TrainActivity.class);
-//            startActivity(intent);
-//        });
-
-        // goto record list activity
-//        btnVisual.setOnClickListener(view -> {
-//            Intent intent = new Intent(MainActivity.this, RecordListActivity.class);
-//            startActivity(intent);
-//        });
+        // jump to accessibility settings
+        mBtnAccess.setOnClickListener((v) -> {
+            Intent settingIntent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+            startActivity(settingIntent);
+        });
 
         // set the default status of the start and end buttons
         enableButtons(false);

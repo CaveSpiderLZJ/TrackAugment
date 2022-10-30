@@ -3,6 +3,7 @@ package com.hcifuture.datacollection.data;
 import android.content.Context;
 import android.os.CountDownTimer;
 import android.os.Handler;
+import android.util.Log;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -25,26 +26,18 @@ public class Recorder {
 
     private Context mContext;
 
-    // microphone currently not used
-//    private MicrophoneController mMicrophoneController;
-//    private CameraController mCameraController;
     private MotionSensorController mMotionSensorController;
-    private LightSensorController mLightSensorController;
     private TimestampController mTimestampController;
 
     // each of the following file will be passed to the start() function
     // of the corresponding sensor controller and used in it
     private File mMotionSensorFile;
-    private File mLightSensorFile;
-//    private File mCameraFile;
-//    private File mMicrophoneFile;
     private File mTimestampFile;
 
     private TaskListBean mTaskList;
     private TaskListBean.Task mTask;
     private TaskListBean.Task.Subtask mSubtask;
     private CountDownTimer mTimer;
-    // interface for onTick() and onFinish()
     private RecorderListener mListener;
 
     private String mRecordId;
@@ -55,20 +48,11 @@ public class Recorder {
     public Recorder(Context context, RecorderListener listener) {
         this.mContext = context;
         this.mListener = listener;
-//        mCameraController = new CameraController((AppCompatActivity) mContext);
         mMotionSensorController = new MotionSensorController(mContext);
-        mLightSensorController = new LightSensorController(mContext);
-//        mMicrophoneController = new MicrophoneController(mContext);
         mTimestampController = new TimestampController(mContext);
         mUserName = "DefaultUser";
         FileUtils.makeDir(BuildConfig.SAVE_PATH);
     }
-
-    // open or close the camera
-//    public void setCamera(boolean b, int lensFacing) {
-//        if (b) mCameraController.openCamera(lensFacing);
-//        else mCameraController.closeCamera();
-//    }
 
     public void start(String userName, int taskId, int subtaskId, TaskListBean taskList) {
         mTaskList = taskList;
@@ -88,9 +72,8 @@ public class Recorder {
         mTimer = new CountDownTimer(actionTime, duration) {
             @Override
             public void onTick(long l) {
-                if (l < duration / 10) { // skip first tick
-                    return;
-                }
+                // skip first tick
+                if (l < duration / 10) return;
                 mTimestampController.add(mMotionSensorController.getLastTimestamp());
                 mTickCount += 1;
                 mListener.onTick(mTickCount, times);
@@ -105,10 +88,6 @@ public class Recorder {
 
         // canceled Handler().postDelayed(() -> {...});
         mMotionSensorController.start(mMotionSensorFile);
-        if (mLightSensorController.isAvailable())
-            mLightSensorController.start(mLightSensorFile);
-//        if (mSubtask.isVideo()) mCameraController.start(mCameraFile);
-//        if (mSubtask.isAudio()) mMicrophoneController.start(mMicrophoneFile);
         mTimestampController.start(mTimestampFile);
         mTimer.start();
     }
@@ -120,18 +99,12 @@ public class Recorder {
     public void cancel() {
         if (mTimer != null) mTimer.cancel();
         mMotionSensorController.cancel();
-        if (mLightSensorController.isAvailable()) mLightSensorController.cancel();
-//        if (mSubtask != null && mSubtask.isVideo()) mCameraController.cancel();
-//        if (mSubtask != null && mSubtask.isAudio()) mMicrophoneController.cancel();
         mTimestampController.cancel();
     }
 
     private void stop() {
         if (mTimer != null) mTimer.cancel();
         mMotionSensorController.stop();
-        if (mLightSensorController.isAvailable()) mLightSensorController.stop();
-//        if (mSubtask.isVideo()) mCameraController.stop();
-//        if (mSubtask.isAudio()) mMicrophoneController.stop();
         mTimestampController.stop();
 
         NetworkUtils.addRecord(mContext, mTaskList.getId(), mTask.getId(), mSubtask.getId(),
@@ -143,12 +116,6 @@ public class Recorder {
         new Handler().postDelayed(() -> {
             long timestamp = System.currentTimeMillis();
             mMotionSensorController.upload(mTaskList.getId(), mTask.getId(), mSubtask.getId(), mRecordId, timestamp);
-            if (mLightSensorController.isAvailable())
-                mLightSensorController.upload(mTaskList.getId(), mTask.getId(), mSubtask.getId(), mRecordId, timestamp);
-//            if (mSubtask.isVideo())
-//                mCameraController.upload(mTaskList.getId(), mTask.getId(), mSubtask.getId(), mRecordId, timestamp);
-//            if (mSubtask.isAudio())
-//                mMicrophoneController.upload(mTaskList.getId(), mTask.getId(), mSubtask.getId(), mRecordId, timestamp);
             mTimestampController.upload(mTaskList.getId(), mTask.getId(), mSubtask.getId(), mRecordId, timestamp);
         }, 2000);
     }
@@ -157,12 +124,6 @@ public class Recorder {
         String suffix = mUserName + "_" + taskId + "_" + subtaskId + "_" + mDateFormat.format(new Date());
         mTimestampFile = new File(BuildConfig.SAVE_PATH, "Timestamp_" + suffix + ".json");
         mMotionSensorFile = new File(BuildConfig.SAVE_PATH, "Motion_" + suffix + ".bin");
-        if (mLightSensorController.isAvailable())
-            mLightSensorFile = new File(BuildConfig.SAVE_PATH, "Light_" + suffix + ".bin");
-//        if (mSubtask.isVideo())
-//            mCameraFile = new File(BuildConfig.SAVE_PATH, "Camera_" + suffix + ".mp4");
-//        if (mSubtask.isAudio())
-//            mMicrophoneFile = new File(BuildConfig.SAVE_PATH, "Microphone_" + suffix + ".mp4");
     }
 
     public interface RecorderListener {

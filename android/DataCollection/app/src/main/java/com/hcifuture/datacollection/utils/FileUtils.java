@@ -7,9 +7,9 @@ import android.content.SharedPreferences;
 import android.util.Log;
 
 import com.hcifuture.datacollection.BuildConfig;
+import com.hcifuture.datacollection.data.SensorData;
 import com.hcifuture.datacollection.data.SensorData1D;
 import com.hcifuture.datacollection.data.SensorData3D;
-import com.hcifuture.datacollection.data.SensorInfo;
 import com.lzy.okgo.callback.FileCallback;
 import com.lzy.okgo.callback.StringCallback;
 import com.lzy.okgo.model.Response;
@@ -113,6 +113,30 @@ public class FileUtils {
             dos.close();
             fos.flush();
             fos.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void writeIMUDataToFile2(List<List<SensorData>> sensorData, File saveFile) {
+        makeFile(saveFile);
+        try {
+            FileOutputStream fos = new FileOutputStream(saveFile);
+            DataOutputStream dos = new DataOutputStream(fos);
+            int size;
+            float[] values;
+            for (List<SensorData> sensor: sensorData) {
+                size = sensor.size();
+                dos.writeInt(size);
+                for (SensorData unit: sensor) {
+                    values = unit.v;
+                    for (int i = 0; i < unit.d; i++)
+                        dos.writeFloat(values[i]);
+                    dos.writeLong(unit.t);
+                }
+            }
+            dos.flush(); dos.close();
+            fos.flush(); fos.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
