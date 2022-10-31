@@ -84,9 +84,9 @@ def plot_filter(data:dict, sensor:str, idx_range:tuple=None, timestamps:list=Non
 
 if __name__ == '__main__':
     task_list_id = 'TL13r912je' # default task list
-    task_id = 'TKh01oe3tq' # Task-3
-    subtask_id = 'ST1drt1qtx' # Unstable
-    record_id = 'RDd8zerklh'
+    task_id = 'TKvgif65wp'
+    subtask_id = 'STc4sfw1t8'
+    record_id = 'RD6pn7eqbh'
     record_path = file_utils.get_record_path(task_list_id, task_id, subtask_id, record_id)
     print(record_path)
     motion_path, timestamp_path = None, None
@@ -103,5 +103,5 @@ if __name__ == '__main__':
     data = record.data
     timestamps = record.timestamps
     
-    # plot_data(data, sensors=('acc', 'linear_acc', 'gyro'), timestamps=timestamps)
-    plot_filter(data, 'linear_acc', idx_range=(0.0, 1.0))
+    plot_data(data, sensors=('acc', 'linear_acc', 'gyro'), timestamps=timestamps)
+    # plot_filter(data, 'linear_acc', idx_range=(0.0, 1.0))
