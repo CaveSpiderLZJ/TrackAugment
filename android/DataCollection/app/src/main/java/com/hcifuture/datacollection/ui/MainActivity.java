@@ -98,12 +98,12 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onTick(int tickCount, int times) {
                 mTaskCounter.setText(tickCount + " / " + times);
-                mVibrator.vibrate(VibrationEffect.createOneShot(200, 128));
+                mVibrator.vibrate(VibrationEffect.createOneShot(100, 64));
             }
 
             @Override
             public void onFinish() {
-                mVibrator.vibrate(VibrationEffect.createOneShot(600, 128));
+                mVibrator.vibrate(VibrationEffect.createOneShot(400, 64));
                 enableButtons(false);
                 mCurrentTic = 0;
                 updateTaskCounter();
