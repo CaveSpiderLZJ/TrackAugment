@@ -13,6 +13,7 @@ class Record:
     
     
     def __init__(self, record_path:str) -> None:
+        assert os.path.exists(record_path)
         self.record_path:str = record_path
         self.motion_path:str = None
         self.timestamp_path:str = None

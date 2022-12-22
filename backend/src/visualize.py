@@ -10,6 +10,7 @@ from scipy.spatial.transform import Rotation
 
 import file_utils as fu
 from data_process.record import Record
+from data_process import augment as aug
 
 
 def output_track_video(save_path:str, phone_pos:np.ndarray, phone_rot:np.ndarray,
@@ -35,14 +36,7 @@ def output_track_video(save_path:str, phone_pos:np.ndarray, phone_rot:np.ndarray
     y_min, y_max = np.min(marker_pos[:,:,1])-PAD, np.max(marker_pos[:,:,1])+PAD
     z_min, z_max = np.min(marker_pos[:,:,2])-PAD, np.max(marker_pos[:,:,2])+PAD
     # rotation axes
-    S = 100
-    x_axis = marker_pos[1,:,:] - marker_pos[0,:,:]
-    x_axis /= np.sqrt(np.sum(np.square(x_axis), axis=1)).clip(1e-8)[:,np.newaxis]
-    y_axis = marker_pos[4,:,:] - marker_pos[1,:,:]
-    y_axis -= x_axis * np.sum(y_axis * x_axis, axis=1)[:,np.newaxis]
-    y_axis /= np.sqrt(np.sum(np.square(y_axis), axis=1)).clip(1e-8)[:,np.newaxis]
-    z_axis = np.cross(x_axis, y_axis)
-    axes = S * np.concatenate([x_axis[None,:,:], y_axis[None,:,:], z_axis[None,:,:]], axis=0)
+    axes = 100 * aug.calc_local_axes(marker_pos)
     # axes = np.identity(n=3, dtype=np.float32)
     # rotation = Rotation.from_quat(phone_rot)
     # axes = S * np.concatenate([rotation.apply(axes[:,i])[np.newaxis,:,:] for i in range(3)], axis=0)
@@ -67,23 +61,28 @@ def output_track_video(save_path:str, phone_pos:np.ndarray, phone_rot:np.ndarray
 
 
 def visualize_record(record:Record) -> None:
-    # plot motion data
-    plt.subplot(2, 1, 1)
+    # plot imu data
+    plt.subplot(3, 1, 1)
     start, end = 12500, 15000
-    # start, end = 0, -1
     motion_data = record.motion_data
     values = motion_data['acc']
     for axis in ('x', 'y', 'z'):
         plt.plot(values[axis][start:end])
     plt.legend(['X', 'Y', 'Z'])
     # plot track data
-    plt.subplot(2, 1, 2)
+    plt.subplot(3, 1, 2)
     start, end = 6935, 7935
-    # start, end = 0, -1
     track_data = record.track_data
     phone_pos = track_data['phone_pos']
     for i in range(3):
         plt.plot(phone_pos[start:end,i])
+    plt.legend(['X', 'Y', 'Z'])
+    # convert track data to imu data
+    plt.subplot(3, 1, 3)
+    axes = aug.calc_local_axes(track_data['marker_pos'])
+    generated_acc = aug.track_to_acc(1e-3*phone_pos[start:end], axes[:,start:end,:], 200.0)
+    for i in range(3):
+        plt.plot(generated_acc[:,i])
     plt.legend(['X', 'Y', 'Z'])
     plt.show()
     
@@ -96,5 +95,3 @@ if __name__ == '__main__':
     record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
     record = Record(record_path)
     visualize_record(record)
-    
-    
