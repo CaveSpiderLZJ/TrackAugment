@@ -31,45 +31,45 @@ def get_temp_path():
 def get_dex_name_path(name):
     return os.path.join(DATA_DEX_ROOT, name)
 
-def get_dex_user_path(userId, name):
-    return os.path.join(get_dex_name_path(name), userId)
+def get_dex_user_path(user_id, name):
+    return os.path.join(get_dex_name_path(name), user_id)
 
-def get_dex_path(userId, name, timestamp):
-    return os.path.join(get_dex_user_path(userId, name), timestamp)
+def get_dex_path(user_id, name, timestamp):
+    return os.path.join(get_dex_user_path(user_id, name), timestamp)
 
-def get_taskList_path(taskListId):
-    return os.path.join(DATA_RECORD_ROOT, taskListId)
+def get_taskList_path(task_list_id):
+    return os.path.join(DATA_RECORD_ROOT, task_list_id)
 
-def get_task_path(taskListId, taskId):
-    return os.path.join(get_taskList_path(taskListId), taskId)
+def get_task_path(task_list_id, task_id):
+    return os.path.join(get_taskList_path(task_list_id), task_id)
 
-def get_subtask_path(taskListId, taskId, subtaskId):
-    return os.path.join(get_task_path(taskListId, taskId), subtaskId)
+def get_subtask_path(task_list_id, task_id, subtask_id):
+    return os.path.join(get_task_path(task_list_id, task_id), subtask_id)
 
-def get_recordlist_path(taskListId, taskId, subtaskId, dataset_version='0.2'):
+def get_recordlist_path(task_list_id, task_id, subtask_id, dataset_version='0.2'):
     if dataset_version == '0.1':
-        return os.path.join(get_subtask_path(taskListId, taskId, subtaskId), 'recordlist.txt')
-    return os.path.join(get_subtask_path(taskListId, taskId, subtaskId), 'recordlist.json')
+        return os.path.join(get_subtask_path(task_list_id, task_id, subtask_id), 'recordlist.txt')
+    return os.path.join(get_subtask_path(task_list_id, task_id, subtask_id), 'recordlist.json')
 
-def get_record_path(taskListId, taskId, subtaskId, recordId):
-    return os.path.join(get_subtask_path(taskListId, taskId, subtaskId), recordId)
+def get_record_path(task_list_id, task_id, subtask_id, record_id):
+    return os.path.join(get_subtask_path(task_list_id, task_id, subtask_id), record_id)
 
-def get_taskList_info_path(taskListId, timestamp = None):
+def get_taskList_info_path(task_list_id, timestamp = None):
     if timestamp is None or str(timestamp) == "0":
-        return os.path.join(get_taskList_path(taskListId), taskListId + ".json")
-    return os.path.join(get_taskList_path(taskListId), taskListId + "_" + str(timestamp) + ".json")
+        return os.path.join(get_taskList_path(task_list_id), task_list_id + ".json")
+    return os.path.join(get_taskList_path(task_list_id), task_list_id + "_" + str(timestamp) + ".json")
 
 def get_task_info_path(taskListid, taskid):
     return os.path.join(get_task_path(taskListid, taskid), taskid + ".json")
 
-def get_subtask_info_path(taskListid, taskid, subtaskId):
-    return os.path.join(get_subtask_path(taskListid, taskid, subtaskId), subtaskId + ".json")
+def get_subtask_info_path(taskListid, taskid, subtask_id):
+    return os.path.join(get_subtask_path(taskListid, taskid, subtask_id), subtask_id + ".json")
 
-def get_train_path(trainId):
-    return os.path.join(DATA_TRAIN_ROOT, trainId)
+def get_train_path(train_id):
+    return os.path.join(DATA_TRAIN_ROOT, train_id)
 
-def get_train_info_path(trainId):
-    return os.path.join(get_train_path(trainId), trainId + '.json')
+def get_train_info_path(train_id):
+    return os.path.join(get_train_path(train_id), train_id + '.json')
 
 def delete_dir(path):
     try:
@@ -89,14 +89,14 @@ def load_json(path):
     with open(path, 'r') as fin:
         return json.load(fin)
 
-def load_taskList_info(taskListId, timestamp = None):
-    taskList_info_path = get_taskList_info_path(taskListId, timestamp)
+def load_taskList_info(task_list_id, timestamp = None):
+    taskList_info_path = get_taskList_info_path(task_list_id, timestamp)
     if not os.path.exists(taskList_info_path):
         print(f'task list info path: {taskList_info_path}')
         taskList_info = {
             'date': '2022.07.03',
             'description': 'Task list for pilot study.',
-            'id': taskListId,
+            'id': task_list_id,
             'tasks': []
         }
         save_json(taskList_info, taskList_info_path)
@@ -105,8 +105,8 @@ def load_taskList_info(taskListId, timestamp = None):
         data = json.load(f)
         return data
 
-def load_recordlist(taskListId, taskId, subtaskId, dataset_version):
-    recordlist_path = get_recordlist_path(taskListId, taskId, subtaskId, dataset_version)
+def load_recordlist(task_list_id, task_id, subtask_id, dataset_version):
+    recordlist_path = get_recordlist_path(task_list_id, task_id, subtask_id, dataset_version)
     if not os.path.exists(recordlist_path):
         return []
 
@@ -115,9 +115,9 @@ def load_recordlist(taskListId, taskId, subtaskId, dataset_version):
         with open(recordlist_path, 'r') as f:
             lines = f.readlines()
             for line in lines:
-                recordId = line.strip()
-                if recordId.startswith('RD') and recordId not in recordlist:
-                    recordlist.append(recordId)
+                record_id = line.strip()
+                if record_id.startswith('RD') and record_id not in recordlist:
+                    recordlist.append(record_id)
     else:
         with open(recordlist_path, 'r') as fin:
             records = json.load(fin)
@@ -126,21 +126,21 @@ def load_recordlist(taskListId, taskId, subtaskId, dataset_version):
         
     return recordlist
 
-def append_recordlist(taskListId, taskId, subtaskId, userName, recordId, dataset_version='0.2'):
-    record_list_path = get_recordlist_path(taskListId, taskId, subtaskId, dataset_version)
+def append_recordlist(task_list_id, task_id, subtask_id, userName, record_id, dataset_version='0.2'):
+    record_list_path = get_recordlist_path(task_list_id, task_id, subtask_id, dataset_version)
     if not os.path.exists(record_list_path):
         save_json([], record_list_path)
     record_list:list = json.load(open(record_list_path, 'r'))
-    record_list.append({'user_name': userName, 'record_id': recordId})
+    record_list.append({'user_name': userName, 'record_id': record_id})
     save_json(record_list, record_list_path)  
 
-def delete_recordlist(taskListId, taskId, subtaskId, recordId, dataset_version='0.2'):
-    record_list_path = get_recordlist_path(taskListId, taskId, subtaskId, dataset_version)
+def delete_recordlist(task_list_id, task_id, subtask_id, record_id, dataset_version='0.2'):
+    record_list_path = get_recordlist_path(task_list_id, task_id, subtask_id, dataset_version)
     if not os.path.exists(record_list_path): return
     record_list:list = json.load(open(record_list_path, 'r'))
     new_record_list = []
     for record in record_list:
-        if record['record_id'] != recordId:
+        if record['record_id'] != record_id:
             new_record_list.append(record)
     save_json(new_record_list, record_list_path)
 

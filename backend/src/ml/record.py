@@ -155,16 +155,6 @@ class Record:
                 'mag':3, 'mag_un':6, 'linear_acc':3, 'gravity':3, 'rotation':4}
         
         data = {}
-        
-        # with open(motion_path, 'rb') as f:
-        #     for data_label in ('acc', 'mag', 'gyro', 'linear_acc'):
-        #         size, = struct.unpack('>i', f.read(4))
-        #         xs, ys, zs, ts = [], [], [], []
-        #         for _ in range(size):
-        #             x, y, z, t = struct.unpack('>fffq', f.read(20))
-        #             xs.append(x); ys.append(y); zs.append(z); ts.append(t)
-        #         data[data_label] = {'x': np.array(xs, dtype=float), 'y': np.array(ys, dtype=float),
-        #                             'z': np.array(zs, dtype=float), 't': np.array(ts, dtype=int)}
                 
         with open(motion_path, 'rb') as f:
             for sensor_type in sensor_types:
