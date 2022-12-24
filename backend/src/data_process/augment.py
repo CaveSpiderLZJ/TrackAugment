@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.spatial.transform import Rotation
 from matplotlib import pyplot as plt
 
 
@@ -31,18 +32,25 @@ def track_to_acc(pos:np.ndarray, axes:np.ndarray, sr:float) -> np.ndarray:
     returns:
         np.ndarray[(N,3), np.float32], the accelerometer data in the local frame.
     '''
-    # calculate linear acc
-    dpos = np.empty_like(pos, dtype=np.float32)
-    dpos[1:-1,:] = pos[2:,:] - pos[:-2,:]
-    dpos[0,:] = 2 * (pos[1,:] - pos[0,:])
-    dpos[-1,:] = 2 * (pos[-1,:] - pos[-2,:])
+    dpos = np.concatenate([pos[1:,:],pos[-1:,:]]) - np.concatenate([pos[:1,:],pos[:-1,:]])
     dpos = (0.5*sr) * np.sum(dpos[np.newaxis,:,:] * axes, axis=2).transpose()
-    acc = np.empty_like(pos, dtype=np.float32)
-    acc[1:-1,:] = dpos[2:,:] - dpos[:-2,:]
-    acc[0,:] = 2 * (dpos[1,:] - dpos[0,:])
-    acc[-1,:] = 2 * (dpos[-1,:] - dpos[-2,:])
-    acc *= (0.5*sr)
-    # add global gravity to acc
+    acc = np.concatenate([dpos[1:,:],dpos[-1:,:]]) - np.concatenate([dpos[:1,:],dpos[:-1,:]])
     gravity = np.array([0.0, 9.805, 0.0], dtype=np.float32)
     gravity = np.sum(gravity[None,None,:] * axes, axis=2).transpose()
-    return acc + gravity
+    return (0.5*sr) * acc + gravity
+
+
+def track_to_gyro(axes:np.ndarray, sr:float) -> np.ndarray:
+    ''' Convert global tracking position to local gyroscope data.
+    args:
+        axes: np.ndarray[(3,N,3), np.float32], the same as track_to_acc.
+        sr: float, the sampling rate, unit = (1 / s).
+    returns:
+        np.ndarray[(N,3), np.float32], the gyroscope data in the local frame.
+    '''
+    q = axes.transpose(1,2,0)
+    q_inv = np.linalg.inv(q)
+    r = np.matmul(np.concatenate([q[1:,:,:], q[-1:,:,:]]),
+        np.concatenate([q_inv[:1,:,:], q_inv[:-1,:,:]]))
+    gyro = (0.5*sr) * Rotation.from_matrix(r).as_rotvec()
+    return np.sum(gyro[np.newaxis,:,:] * axes, axis=2).transpose()

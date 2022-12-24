@@ -65,7 +65,7 @@ def visualize_record(record:Record) -> None:
     plt.subplot(3, 1, 1)
     start, end = 12500, 15000
     motion_data = record.motion_data
-    values = motion_data['acc']
+    values = motion_data['gyro']
     for axis in ('x', 'y', 'z'):
         plt.plot(values[axis][start:end])
     plt.legend(['X', 'Y', 'Z'])
@@ -81,8 +81,9 @@ def visualize_record(record:Record) -> None:
     plt.subplot(3, 1, 3)
     axes = aug.calc_local_axes(track_data['marker_pos'])
     generated_acc = aug.track_to_acc(1e-3*phone_pos[start:end], axes[:,start:end,:], 200.0)
+    generated_gyro = aug.track_to_gyro(axes[:,start:end,:], 200.0)
     for i in range(3):
-        plt.plot(generated_acc[:,i])
+        plt.plot(generated_gyro[:,i])
     plt.legend(['X', 'Y', 'Z'])
     plt.show()
     
