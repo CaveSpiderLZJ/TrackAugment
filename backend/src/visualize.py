@@ -63,27 +63,32 @@ def output_track_video(save_path:str, phone_pos:np.ndarray, phone_rot:np.ndarray
 def visualize_record(record:Record) -> None:
     # plot imu data
     plt.subplot(3, 1, 1)
-    start, end = 12500, 15000
+    start1, end1 = 2500, 3000
     motion_data = record.motion_data
-    values = motion_data['gyro']
-    for axis in ('x', 'y', 'z'):
-        plt.plot(values[axis][start:end])
+    sensor = motion_data['gyro']
+    sensor = np.column_stack([sensor[axis] for axis in ('x', 'y', 'z')])
+    sensor = aug.down_sample(sensor, axis=0, step=5)
+    for i in range(3):
+        plt.plot(sensor[start1:end1, i])
     plt.legend(['X', 'Y', 'Z'])
     # plot track data
     plt.subplot(3, 1, 2)
-    start, end = 6935, 7935
+    start2, end2 = 6934, 7934
     track_data = record.track_data
     phone_pos = track_data['phone_pos']
     for i in range(3):
-        plt.plot(phone_pos[start:end,i])
+        plt.plot(phone_pos[start2:end2,i])
     plt.legend(['X', 'Y', 'Z'])
     # convert track data to imu data
     plt.subplot(3, 1, 3)
     axes = aug.calc_local_axes(track_data['marker_pos'])
-    generated_acc = aug.track_to_acc(1e-3*phone_pos[start:end], axes[:,start:end,:], 200.0)
-    generated_gyro = aug.track_to_gyro(axes[:,start:end,:], 200.0)
+    # generated = aug.track_to_acc(1e-3*phone_pos[start2:end2], axes[:,start2:end2,:], 200.0)
+    generated = aug.track_to_gyro(axes[:,start2:end2,:], 200.0)
+    generated = aug.down_sample(generated, axis=0, step=2)
+    offset = aug.align_time_series(sensor[start1:end1,:], generated, axis=0, padding=20)
+    print(f'MSE error: {aug.mse_error(sensor[start1-offset:end1-offset,:], generated):.6f}')
     for i in range(3):
-        plt.plot(generated_gyro[:,i])
+        plt.plot(generated[:,i])
     plt.legend(['X', 'Y', 'Z'])
     plt.show()
     
