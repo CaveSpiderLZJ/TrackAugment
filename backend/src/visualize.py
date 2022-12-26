@@ -93,6 +93,34 @@ def visualize_record(record:Record) -> None:
     plt.show()
     
     
+def visualize_markers(record:Record) -> None:
+    ''' Visualize the marker positions.
+    '''
+    track_data = record.track_data
+    phone_pos = track_data['phone_pos']
+    marker_pos = track_data['marker_pos']
+    axes = aug.calc_local_axes(marker_pos)
+    phone_pos -= marker_pos[0,:,:]
+    phone_pos = np.sum(phone_pos[None,:,:] * axes, axis=2).transpose()
+    phone_pos = np.mean(phone_pos, axis=0)
+    marker_pos -= marker_pos[0:1,:,:]
+    for i in range(marker_pos.shape[0]):
+        marker_pos[i,:,:] = np.sum((marker_pos[i:i+1,:,:]) * axes, axis=2).transpose()
+    marker_pos = np.mean(marker_pos, axis=1)
+    np.set_printoptions(formatter={'float': ' {:0.1f} '.format})
+    print(f'### phone_pos (mm):')
+    print(phone_pos[:2])
+    print(f'### marker_pos (mm):')
+    print(marker_pos[:,:2])
+    plt.scatter([phone_pos[0]], [phone_pos[1]])
+    plt.scatter(marker_pos[:,0], marker_pos[:,1])
+    plt.gca().set_aspect(1)
+    plt.title(f'Marker Positions')
+    plt.xlabel(f'x (mm)')
+    plt.ylabel(f'y (mm)')
+    plt.show()
+    
+    
 if __name__ == '__main__':
     task_list_id = 'TL13r912je'
     task_id = 'TKfvdarv6k'
@@ -100,4 +128,5 @@ if __name__ == '__main__':
     record_id = 'RDmb2zdzis'
     record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
     record = Record(record_path)
-    visualize_record(record)
+    # visualize_record(record)
+    visualize_markers(record)
