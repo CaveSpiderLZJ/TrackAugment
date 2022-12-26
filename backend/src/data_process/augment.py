@@ -2,6 +2,13 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 from matplotlib import pyplot as plt
 
+from data_process.filter import Butterworth
+
+
+# Warning: fs is hardcoded as the samping frequency of track data.
+butter_acc = Butterworth(fs=200.0, cut=20.0, mode='lowpass', order=1)
+butter_gyro = Butterworth(fs=200.0, cut=40.0, mode='lowpass', order=1)
+
 
 def calc_local_axes(marker_pos:np.ndarray) -> np.ndarray:
     ''' Calculate local axes from marker position tracking data.
@@ -39,7 +46,7 @@ def track_to_acc(pos:np.ndarray, axes:np.ndarray, sr:float) -> np.ndarray:
         + 8*np.concatenate([acc[1:,:],acc[-1:,:]]) - np.concatenate([acc[2:,:],acc[-1:,:],acc[-1:,:]]))
     gravity = np.array([0.0, 9.805, 0.0], dtype=np.float32)
     gravity = np.sum(gravity[None,None,:] * axes, axis=2).transpose()
-    return (sr/12) * acc + gravity
+    return butter_acc.filt((sr/12) * acc + gravity, axis=0)
 
 
 def track_to_gyro(axes:np.ndarray, sr:float) -> np.ndarray:
@@ -55,7 +62,8 @@ def track_to_gyro(axes:np.ndarray, sr:float) -> np.ndarray:
     r = np.matmul(np.concatenate([q[1:,:,:], q[-1:,:,:]]),
         np.concatenate([q_inv[:1,:,:], q_inv[:-1,:,:]]))
     gyro = (0.5*sr) * Rotation.from_matrix(r).as_rotvec()
-    return np.sum(gyro[None,:,:] * axes, axis=2).transpose()
+    gyro = np.sum(gyro[None,:,:] * axes, axis=2).transpose()
+    return butter_gyro.filt(gyro, axis=0)
 
 
 def down_sample(data:np.ndarray, axis:int, step:int) -> np.ndarray:
