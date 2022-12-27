@@ -39,14 +39,14 @@ def track_to_acc(pos:np.ndarray, axes:np.ndarray, sr:float) -> np.ndarray:
     returns:
         np.ndarray[(N,3), np.float32], the accelerometer data in the local frame.
     '''
-    acc = (np.concatenate([pos[:1,:],pos[:1,:],pos[:-2,:]]) - 8*np.concatenate([pos[:1,:],pos[:-1,:]])
+    acc = (sr/12) * (np.concatenate([pos[:1,:],pos[:1,:],pos[:-2,:]]) - 8*np.concatenate([pos[:1,:],pos[:-1,:]])
         + 8*np.concatenate([pos[1:,:],pos[-1:,:]]) - np.concatenate([pos[2:,:],pos[-1:,:],pos[-1:,:]]))
-    acc = (sr/12) * np.sum(acc[None,:,:] * axes, axis=2).transpose()
-    acc = (np.concatenate([acc[:1,:],acc[:1,:],acc[:-2,:]]) - 8*np.concatenate([acc[:1,:],acc[:-1,:]])
+    acc = (sr/12) * (np.concatenate([acc[:1,:],acc[:1,:],acc[:-2,:]]) - 8*np.concatenate([acc[:1,:],acc[:-1,:]])
         + 8*np.concatenate([acc[1:,:],acc[-1:,:]]) - np.concatenate([acc[2:,:],acc[-1:,:],acc[-1:,:]]))
+    acc = np.sum(acc[None,:,:] * axes, axis=2).transpose()
     gravity = np.array([0.0, 9.805, 0.0], dtype=np.float32)
     gravity = np.sum(gravity[None,None,:] * axes, axis=2).transpose()
-    return butter_acc.filt((sr/12) * acc + gravity, axis=0)
+    return butter_acc.filt(acc + gravity, axis=0)
 
 
 def track_to_gyro(axes:np.ndarray, sr:float) -> np.ndarray:

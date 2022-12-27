@@ -13,18 +13,18 @@ from data_process.record import Record
 from data_process import augment as aug
 
 
-def output_track_video(save_path:str, phone_pos:np.ndarray, phone_rot:np.ndarray,
-    marker_pos:np.ndarray, start_frame:int, end_frame:int) -> None:
+def output_track_video(record:Record, save_path:str, start_frame:int, end_frame:int) -> None:
     ''' Output the tracking video from tracking data.
     args:
+        record: Record, the record data.
         save_path: str, the video save path.
-        phone_pos: np.ndarray[(T,3), np.float32].
-        phone_rot: np.ndarray[(T,4), np.float32],
-            each row is a quanternion in (X, Y, Z, W).
-        marker_pos: np.ndarray[(N_MARKER=6,T,3), np.float32].
         start_frame: int, the start frame index.
         end_frame: int, the end frame index.
     '''
+    track_data = record.track_data
+    phone_pos = track_data['phone_pos']
+    phone_rot = track_data['phone_rot']
+    marker_pos = track_data['marker_pos']
     H, W, PAD = 480, 640, 20
     T = phone_pos.shape[0]
     fourcc = cv2.VideoWriter_fourcc(*'avc1')
@@ -62,34 +62,35 @@ def output_track_video(save_path:str, phone_pos:np.ndarray, phone_rot:np.ndarray
 
 def visualize_record(record:Record) -> None:
     # plot imu data
-    plt.subplot(3, 1, 1)
-    start1, end1 = 2500, 3000
+    plt.subplot(2, 1, 1)
+    start1, end1 = 500, 10500
     motion_data = record.motion_data
-    sensor = motion_data['gyro']
+    sensor = motion_data['acc']
     sensor = np.column_stack([sensor[axis] for axis in ('x', 'y', 'z')])
     sensor = aug.down_sample(sensor, axis=0, step=5)
     for i in range(3):
         plt.plot(sensor[start1:end1, i])
-    plt.legend(['X', 'Y', 'Z'])
     # plot track data
-    plt.subplot(3, 1, 2)
-    start2, end2 = 6934, 7934
+    plt.subplot(2, 1, 2)
+    start2, end2 = 2934, 22934
     track_data = record.track_data
     phone_pos = track_data['phone_pos']
     for i in range(3):
         plt.plot(phone_pos[start2:end2,i])
-    plt.legend(['X', 'Y', 'Z'])
-    # convert track data to imu data
-    plt.subplot(3, 1, 3)
+    plt.legend(['X', 'Y', 'Z'], loc='lower right')
+    # search the best offset to phone pos
     axes = aug.calc_local_axes(track_data['marker_pos'])
-    # generated = aug.track_to_acc(1e-3*phone_pos[start2:end2], axes[:,start2:end2,:], 200.0)
-    generated = aug.track_to_gyro(axes[:,start2:end2,:], 200.0)
+    # plot generated data
+    plt.subplot(2, 1, 1)
+    axes = aug.calc_local_axes(track_data['marker_pos'])
+    generated = aug.track_to_acc(1e-3*phone_pos[start2:end2,:], axes[:,start2:end2,:], 200.0)
+    # generated = aug.track_to_gyro(axes[:,start2:end2,:], 200.0)
     generated = aug.down_sample(generated, axis=0, step=2)
     offset = aug.align_time_series(sensor[start1:end1,:], generated, axis=0, padding=20)
-    print(f'MSE error: {aug.mse_error(sensor[start1-offset:end1-offset,:], generated):.6f}')
+    print(f'MSE error: {aug.mse_error(sensor[start1-offset:end1-offset,:], generated):.3f}')
     for i in range(3):
         plt.plot(generated[:,i])
-    plt.legend(['X', 'Y', 'Z'])
+    plt.legend(['X', 'Y', 'Z', 'X1', 'Y1', 'Z1'], loc='lower right')
     plt.show()
     
     
@@ -128,5 +129,6 @@ if __name__ == '__main__':
     record_id = 'RDmb2zdzis'
     record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
     record = Record(record_path)
-    # visualize_record(record)
-    visualize_markers(record)
+    # output_track_video(record, 'track2.mp4', 7000, 8000)
+    visualize_record(record)
+    # visualize_markers(record)
