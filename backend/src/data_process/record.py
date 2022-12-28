@@ -37,14 +37,14 @@ class Record:
         if track_path is None or not os.path.exists(track_path): return
         track_data = pd.read_csv(track_path, header=[1,3,4])
         timestamps = track_data[('Unnamed: 1_level_0', 'Unnamed: 1_level_1', 'Time (Seconds)')].to_numpy(np.float32)
-        phone_pos = [track_data[('SmartPhone', 'Position', axis)].to_numpy(
+        center_pos = [track_data[('SmartPhone', 'Position', axis)].to_numpy(
             np.float32) for axis in ('X', 'Y', 'Z')]
-        phone_pos = np.column_stack(phone_pos)
-        phone_pos[np.isnan(phone_pos)] = 0.0
-        phone_rot = [track_data[('SmartPhone', 'Rotation', axis)].to_numpy(
+        center_pos = np.column_stack(center_pos)
+        center_pos[np.isnan(center_pos)] = 0.0
+        center_rot = [track_data[('SmartPhone', 'Rotation', axis)].to_numpy(
             np.float32) for axis in ('X', 'Y', 'Z', 'W')]
-        phone_rot = np.column_stack(phone_rot)
-        phone_rot[np.isnan(phone_rot)] = 1.0
+        center_rot = np.column_stack(center_rot)
+        center_rot[np.isnan(center_rot)] = 1.0
         marker_pos = []
         for i in range(1,7):
             pos = [track_data[(f'SmartPhone:Marker{i}', 'Position', axis)].to_numpy(
@@ -52,8 +52,8 @@ class Record:
             marker_pos.append(np.column_stack(pos)[np.newaxis,:,:])
         marker_pos = np.concatenate(marker_pos, axis=0)
         marker_pos[np.isnan(marker_pos)] = 0.0
-        self.track_data = {'timestamps': timestamps, 'phone_pos': phone_pos,
-            'phone_rot': phone_rot, 'marker_pos': marker_pos}
+        self.track_data = {'timestamps': timestamps, 'center_pos': center_pos,
+            'center_rot': center_rot, 'marker_pos': marker_pos}
         
     
     def load_motion_data(self):
