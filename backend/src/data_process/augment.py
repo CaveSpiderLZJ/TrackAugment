@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.spatial.transform import Rotation
 from matplotlib import pyplot as plt
+from typing import Tuple, List, Dict
 
 from data_process.filter import Butterworth
 
@@ -28,32 +29,32 @@ def calc_local_axes(marker_pos:np.ndarray) -> np.ndarray:
     return np.concatenate([x_axis[None,:,:], y_axis[None,:,:], z_axis[None,:,:]], axis=0)
 
 
-def track_to_acc(pos:np.ndarray, axes:np.ndarray, sr:float) -> np.ndarray:
+def track_to_acc(pos:np.ndarray, axes:np.ndarray, fs:float) -> np.ndarray:
     ''' Convert global tracking position to local accelerometer data.
     args:
         pos: np.ndarray[(N,3), np.float32], the x, y, z global position of
             the tracking center, unit = (m / s^2).
         axes: np.ndarray[(3,N,3), np.float32], the local x, y, z axis unit direction
             vecotors in the global frame. axes[0,:,:] represents the x axis direction and so on.
-        sr: float, the sampling rate, unit = (1 / s).
+        fs: float, the sampling frequency, unit = (1 / s).
     returns:
         np.ndarray[(N,3), np.float32], the accelerometer data in the local frame.
     '''
-    acc = (sr/12) * (np.concatenate([pos[:1,:],pos[:1,:],pos[:-2,:]]) - 8*np.concatenate([pos[:1,:],pos[:-1,:]])
+    acc = (fs/12) * (np.concatenate([pos[:1,:],pos[:1,:],pos[:-2,:]]) - 8*np.concatenate([pos[:1,:],pos[:-1,:]])
         + 8*np.concatenate([pos[1:,:],pos[-1:,:]]) - np.concatenate([pos[2:,:],pos[-1:,:],pos[-1:,:]]))
-    acc = (sr/12) * (np.concatenate([acc[:1,:],acc[:1,:],acc[:-2,:]]) - 8*np.concatenate([acc[:1,:],acc[:-1,:]])
+    acc = (fs/12) * (np.concatenate([acc[:1,:],acc[:1,:],acc[:-2,:]]) - 8*np.concatenate([acc[:1,:],acc[:-1,:]])
         + 8*np.concatenate([acc[1:,:],acc[-1:,:]]) - np.concatenate([acc[2:,:],acc[-1:,:],acc[-1:,:]]))
-    acc = np.sum(acc[None,:,:] * axes, axis=2).transpose()
+    acc = np.sum(acc[None,:,:] * axes, axis=2).T
     gravity = np.array([0.0, 9.805, 0.0], dtype=np.float32)
-    gravity = np.sum(gravity[None,None,:] * axes, axis=2).transpose()
+    gravity = np.sum(gravity[None,None,:] * axes, axis=2).T
     return butter_acc.filt(acc + gravity, axis=0)
 
 
-def track_to_gyro(axes:np.ndarray, sr:float) -> np.ndarray:
+def track_to_gyro(axes:np.ndarray, fs:float) -> np.ndarray:
     ''' Convert global tracking position to local gyroscope data.
     args:
         axes: np.ndarray[(3,N,3), np.float32], the same as track_to_acc.
-        sr: float, the sampling rate, unit = (1 / s).
+        fs: float, the sampling freqency, unit = (1 / s).
     returns:
         np.ndarray[(N,3), np.float32], the gyroscope data in the local frame.
     '''
@@ -61,9 +62,59 @@ def track_to_gyro(axes:np.ndarray, sr:float) -> np.ndarray:
     q_inv = np.linalg.inv(q)
     r = np.matmul(np.concatenate([q[1:,:,:], q[-1:,:,:]]),
         np.concatenate([q_inv[:1,:,:], q_inv[:-1,:,:]]))
-    gyro = (0.5*sr) * Rotation.from_matrix(r).as_rotvec()
-    gyro = np.sum(gyro[None,:,:] * axes, axis=2).transpose()
+    gyro = (0.5*fs) * Rotation.from_matrix(r).as_rotvec()
+    gyro = np.sum(gyro[None,:,:] * axes, axis=2).T
     return butter_gyro.filt(gyro, axis=0)
+
+
+def imu_to_track(acc:np.ndarray, gyro:np.ndarray, bound_pos:np.ndarray,
+        bound_velocity:np.ndarray, bound_axes:np.ndarray, fs:float) -> Tuple[np.ndarray, np.ndarray]:
+    ''' Given the initial motion status, convert 6-axis imu data to track data.
+    args:
+        acc: np.ndarray[(N,3), np.float32], the acc data in the local frame.
+        gyro: np.ndarray[(N,3), np.float32], the gyro data in the local frame.
+        bound_pos: np.ndarray[(2,3), np.float32], the initial and ending
+            position in the global frame.
+        bound_velocity: np.ndarray[(2,3), np.float32], the initial and ending
+            velocity in the global frame.
+        bound_axes: np.ndarray[(3,4,3), np.float32], the initial and ending
+            x, y, z axis unit direction vectors in the global frame.
+        fs: float, the sampling frequency in Hz.
+    returns:
+        Tuple[np.ndarray[(N,3), np.float32], np.ndarray[(3,N,3), np.float32]],
+            the converted global position and axes directions.
+    '''
+    N = acc.shape[0]
+    weight1 = np.linspace(1.0, 0.0, num=N)
+    weight2 = 1.0 - weight1
+    # calculate axes
+    axes1, axes2 = np.empty((3,N,3), dtype=np.float32), np.empty((3,N,3), dtype=np.float32)
+    axes1[:,:2,:], axes2[:,-2:,:] = bound_axes[:,:2,:], bound_axes[:,-2:,:]
+    for t in range(N-2):
+        rot1 = (2/fs) * np.sum(gyro[t+1,:,None] * axes1[:,t+1,:], axis=0)
+        rot2 = (2/fs) * np.sum(gyro[N-2-t,:,None] * axes2[:,N-2-t,:], axis=0)
+        rot1, rot2 = Rotation.from_rotvec(rot1), Rotation.from_rotvec(rot2)
+        axes1[:,t+2,:] = np.matmul(rot1.as_matrix(), axes1[:,t,:].T).T
+        axes2[:,N-3-t,:] = np.matmul(np.linalg.inv(rot2.as_matrix()), axes2[:,N-1-t,:].T).T
+    axes = axes1 * weight1[None,:,None] + axes2 * weight2[None,:,None]
+    # calculate global acc
+    gravity = np.array([0.0, 9.805, 0.0], dtype=np.float32)
+    a = np.sum(acc.T[:,:,None] * axes, axis=0) - gravity[None,:]
+    # integrate to velocity
+    v1, v2 = np.empty((N,3), dtype=np.float32), np.empty((N,3), dtype=np.float32)
+    v1[:1,:] = bound_velocity[:1,:]
+    v1[1:,:] = bound_velocity[:1,:] + (1/(2*fs))*np.cumsum((a[:-1,:] + a[1:,:]), axis=0)
+    v2[-1:,:] = bound_velocity[-1:,:]
+    v2[:-1,:] = bound_velocity[-1:,:] - (1/(2*fs))*np.cumsum((a[-2::-1,:] + a[:0:-1,:]), axis=0)[::-1,:]
+    v = v1 * weight1[:,None] + v2 * weight2[:,None]
+    # integrate to position
+    p1, p2 = np.empty((N,3), dtype=np.float32), np.empty((N,3), dtype=np.float32)
+    p1[:1,:] = bound_pos[:1,:]
+    p1[1:,:] = bound_pos[:1,:] + (1/(2*fs))*np.cumsum((v[:-1,:] + v[1:,:]), axis=0)
+    p2[-1:,:] = bound_pos[-1:,:]
+    p2[:-1,:] = bound_pos[-1:,:] - (1/(2*fs))*np.cumsum((v[-2::-1,:] + v[:0:-1,:]), axis=0)[::-1,:]
+    pos = p1 * weight1[:,None] + p2 * weight2[:,None]
+    return pos, axes
 
 
 def down_sample(data:np.ndarray, axis:int, step:int) -> np.ndarray:

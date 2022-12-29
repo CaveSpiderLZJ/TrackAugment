@@ -38,7 +38,7 @@ def output_track_video(record:Record, save_path:str, start_frame:int, end_frame:
     axes = 100 * aug.calc_local_axes(marker_pos)
     # rotate x, y, z to -x, z, y
     rot_matrix = np.array([[-1,0,0],[0,0,1],[0,1,0]], dtype=np.float32)
-    center_pos = np.matmul(rot_matrix, center_pos.transpose()).transpose()
+    center_pos = np.matmul(rot_matrix, center_pos.T).T
     marker_pos = np.matmul(rot_matrix[None,:,:], marker_pos.transpose(0,2,1)).transpose(0,2,1)
     axes = np.matmul(rot_matrix[None,:,:], axes.transpose(0,2,1)).transpose(0,2,1)
     # x, y, z axis limits
@@ -74,16 +74,16 @@ def output_track_video(record:Record, save_path:str, start_frame:int, end_frame:
 def visualize_record(record:Record) -> None:
     # plot imu data
     plt.subplot(2, 1, 1)
-    start1, end1 = 500, 10500
-    motion_data = record.motion_data
-    sensor = motion_data['acc']
+    start1, end1 = 500, 1000
+    imu_data = record.imu_data
+    sensor = imu_data['acc']
     sensor = np.column_stack([sensor[axis] for axis in ('x', 'y', 'z')])
     sensor = aug.down_sample(sensor, axis=0, step=5)
     for i in range(3):
         plt.plot(sensor[start1:end1, i])
     # plot track data
     plt.subplot(2, 1, 2)
-    start2, end2 = 2934, 22934
+    start2, end2 = 2934, 3934
     track_data = record.track_data
     center_pos = track_data['center_pos']
     for i in range(3):
@@ -111,11 +111,11 @@ def visualize_markers(record:Record) -> None:
     marker_pos = track_data['marker_pos']
     axes = aug.calc_local_axes(marker_pos)
     center_pos -= marker_pos[0,:,:]
-    center_pos = np.sum(center_pos[None,:,:] * axes, axis=2).transpose()
+    center_pos = np.sum(center_pos[None,:,:] * axes, axis=2).T
     center_pos = np.mean(center_pos, axis=0)
     marker_pos -= marker_pos[0:1,:,:]
     for i in range(marker_pos.shape[0]):
-        marker_pos[i,:,:] = np.sum((marker_pos[i:i+1,:,:]) * axes, axis=2).transpose()
+        marker_pos[i,:,:] = np.sum((marker_pos[i:i+1,:,:]) * axes, axis=2).T
     marker_pos = np.mean(marker_pos, axis=1)
     np.set_printoptions(formatter={'float': ' {:0.1f} '.format})
     print(f'### center_pos (mm):')
@@ -140,7 +140,7 @@ def visualize_track(record:Record) -> None:
     pos = center_pos[start:end,:]
     # rotate x, y, z to -x, z, y
     rot_matrix = np.array([[-1,0,0],[0,0,1],[0,1,0]], dtype=np.float32)
-    pos = np.matmul(rot_matrix, pos.transpose()).transpose()
+    pos = np.matmul(rot_matrix, pos.T).T
     fig = plt.figure()
     ax = plt.axes(projection='3d')
     ax.plot(pos[:,0], pos[:,1], pos[:,2])
@@ -157,6 +157,38 @@ def visualize_track(record:Record) -> None:
     plt.show()
     
     
+def visualize_imu_to_track(record:Record):
+    imu_data = record.imu_data
+    track_data = record.track_data
+    start_imu, end_imu = 3000, 3500
+    start_track, end_track = 3134, 3334
+    acc, gyro = imu_data['acc'], imu_data['gyro']
+    acc = np.column_stack([acc[axis] for axis in ('x','y','z')])[start_imu:end_imu,:]
+    gyro = np.column_stack([gyro[axis] for axis in ('x','y','z')])[start_imu:end_imu,:]
+    center_pos = track_data['center_pos'][start_track:end_track,:]
+    marker_pos = track_data['marker_pos'][:,start_track:end_track,:]
+    axes = aug.calc_local_axes(marker_pos)
+    # down_sample
+    acc = aug.down_sample(acc, axis=0, step=5)
+    gyro = aug.down_sample(gyro, axis=0, step=5)
+    center_pos = aug.down_sample(center_pos, axis=0, step=2)
+    axes = aug.down_sample(axes, axis=1, step=2)
+    bound_pos = 1e-3*np.concatenate([center_pos[:1,:],center_pos[-1:,:]], axis=0)
+    bound_velocity = 0.1*np.concatenate([center_pos[1:2,:]-center_pos[0:1,:],
+        center_pos[-1:,:]-center_pos[-2:-1,:]], axis=0)
+    bound_axes = np.concatenate([axes[:,:2,:],axes[:,-2:,:]], axis=1)
+    generated_pos, generated_axes = aug.imu_to_track(acc, gyro, bound_pos,
+        bound_velocity, bound_axes, 100.0)
+    generated_pos *= 1e3
+    mse = aug.mse_error(center_pos, generated_pos)
+    print(f'MSE Error: {mse:.6f}.')
+    for i in range(3):
+        plt.plot(center_pos[:,i])
+    for i in range(3):
+        plt.plot(generated_pos[:,i])
+    plt.show()
+    
+    
 if __name__ == '__main__':
     task_list_id = 'TL13r912je'
     task_id = 'TKfvdarv6k'
@@ -167,4 +199,5 @@ if __name__ == '__main__':
     # output_track_video(record, 'track.mp4', 1934, 22934)
     # visualize_record(record)
     # visualize_markers(record)
-    visualize_track(record)
+    # visualize_track(record)
+    visualize_imu_to_track(record)
