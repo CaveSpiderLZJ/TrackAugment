@@ -188,6 +188,25 @@ def visualize_imu_to_track(record:Record):
         plt.plot(generated_pos[:,i])
     plt.show()
     
+
+def visualize_augmentation(record:Record):
+    track_data = record.track_data
+    start, end = 2934, 3934
+    center_pos = track_data['center_pos'][start:end,:]
+    # augmented = aug.jitter(center_pos, std=3.0)
+    # matrix = np.array([[1,0,0],[0,0,1],[0,1,0]], dtype=np.float32)
+    # augmented = aug.rotate(center_pos, matrix) - 5
+    # augmented = aug.scale(center_pos, 0.05)
+    # augmented = aug.window_slice(center_pos, axis=0, start=0, window_length=800) - 5
+    # augmented = aug.magnitude_warp(center_pos, axis=0, n_knots=8, std=0.05, preserve_bound=False)
+    augmented = aug.time_warp(center_pos, axis=0, n_knots=4, std=0.02)
+    for i in range(3):
+        plt.plot(center_pos[:,i])
+    for i in range(3):
+        plt.plot(augmented[:,i])
+    plt.legend(['X','Y','Z','X1','Y1','Z1'], loc='lower right')
+    plt.show()
+    
     
 if __name__ == '__main__':
     task_list_id = 'TL13r912je'
@@ -200,4 +219,5 @@ if __name__ == '__main__':
     # visualize_record(record)
     # visualize_markers(record)
     # visualize_track(record)
-    visualize_imu_to_track(record)
+    # visualize_imu_to_track(record)
+    visualize_augmentation(record)
