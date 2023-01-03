@@ -118,7 +118,25 @@ def imu_to_track(acc:np.ndarray, gyro:np.ndarray, bound_pos:np.ndarray,
     return pos, axes
 
 
-def down_sample(data:np.ndarray, axis:int, step:int) -> np.ndarray:
+def resample(data:np.ndarray, axis:int, ratio:float) -> np.ndarray:
+    ''' Resample data by spline interpolation.
+    args:
+        data: np.ndarray, with any shape and dtype.
+        axis: int, the samping axis.
+        ratio: float, the number of resampled data points over
+            the number of original data points.
+    returns:
+        np.ndarray, the resampled data.
+    '''
+    N = data.shape[axis]
+    M = int(N * ratio)
+    t = np.arange(N, dtype=np.float32)
+    x = np.linspace(0, N-1, num=M, endpoint=True)
+    interp_func = interp.interp1d(t, data, kind='quadratic', axis=axis)
+    return interp_func(x)
+
+
+def down_sample_by_step(data:np.ndarray, axis:int, step:int) -> np.ndarray:
     ''' Down-sample any np.ndarray along a dynamically designated axis with a specfic integer step.
     args:
         data: np.ndarray, with any shape and dtype.
@@ -202,6 +220,7 @@ def scale(data:np.ndarray, std:float):
     returns:
         np.ndarray, with the same shape and dtype as data.
     '''
+    return data * 1.1
     return data * (1.0 + np.random.randn() * std)
 
 
@@ -269,3 +288,11 @@ def time_warp(data:np.ndarray, axis:int, n_knots:int, std:float) -> np.ndarray:
     ts = ts.clip(0, N-1)
     interp_func = interp.interp1d(np.arange(N), data, axis=axis)
     return interp_func(ts)
+
+
+if __name__ == '__main__':
+    ts = np.arange(10, dtype=np.float32)
+    ys = np.sin(0.5*np.pi*ts)
+    resampled = resample(ys, axis=0, ratio=0.5)
+    plt.plot(resampled)
+    plt.show()
