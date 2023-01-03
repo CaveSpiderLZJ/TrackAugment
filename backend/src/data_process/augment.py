@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.spatial.transform import Rotation
+from scipy import interpolate as interp
 from matplotlib import pyplot as plt
 from typing import Tuple, List, Dict
 
@@ -117,7 +118,25 @@ def imu_to_track(acc:np.ndarray, gyro:np.ndarray, bound_pos:np.ndarray,
     return pos, axes
 
 
-def down_sample(data:np.ndarray, axis:int, step:int) -> np.ndarray:
+def resample(data:np.ndarray, axis:int, ratio:float) -> np.ndarray:
+    ''' Resample data by spline interpolation.
+    args:
+        data: np.ndarray, with any shape and dtype.
+        axis: int, the samping axis.
+        ratio: float, the number of resampled data points over
+            the number of original data points.
+    returns:
+        np.ndarray, the resampled data.
+    '''
+    N = data.shape[axis]
+    M = int(N * ratio)
+    t = np.arange(N, dtype=np.float32)
+    x = np.linspace(0, N-1, num=M, endpoint=True)
+    interp_func = interp.interp1d(t, data, kind='quadratic', axis=axis)
+    return interp_func(x)
+
+
+def down_sample_by_step(data:np.ndarray, axis:int, step:int) -> np.ndarray:
     ''' Down-sample any np.ndarray along a dynamically designated axis with a specfic integer step.
     args:
         data: np.ndarray, with any shape and dtype.
@@ -168,3 +187,112 @@ def mse_error(data1:np.ndarray, data2:np.ndarray) -> float:
         float, the MSE error of the two arrays.
     '''
     return np.sum(np.square(data1-data2)) / np.prod(data1.shape)
+
+
+def jitter(data:np.ndarray, std:float) -> np.ndarray:
+    ''' Add random Gaussian noise to the data.
+    args:
+        data: np.ndarray, with any shape and dtype.
+        std: float, the standard deviation of the Gaussian noise.
+    returns:
+        np.ndarray, with the same shape as data.
+    '''
+    return data + np.random.randn(*data.shape) * std
+
+
+def rotate(data:np.ndarray, matrix:np.ndarray) -> np.ndarray:
+    ''' Rotate the signals by the roration matrix.
+    args:
+        data: np.ndarray[(...,N,M)], with any dtype.
+        matrix: np.ndarray[(M,M)], with any dtype.
+    '''
+    ndim = data.ndim
+    schema = np.arange(ndim)
+    schema[-2:] = ndim-1, ndim-2
+    return np.matmul(matrix, data.transpose(schema)).transpose(schema)
+
+
+def scale(data:np.ndarray, std:float):
+    ''' Scale the data by a random factor alpha ~ N(0, std^2).
+    args:
+        data: np.ndarray, with any shape and dtype.
+        std: float, the std deviation of the scaling factor.
+    returns:
+        np.ndarray, with the same shape and dtype as data.
+    '''
+    return data * 1.1
+    return data * (1.0 + np.random.randn() * std)
+
+
+def window_slice(data:np.ndarray, axis:int, start:int, window_length:int) -> np.ndarray:
+    ''' Slice a window in the data.
+    args:
+        data: np.ndarray, length in time axis must >= window_length.
+        axis: int, the index of the time axis.
+        start: int, the slice start index.
+        window_length: int, the sliced window length.
+    returns:
+        np.ndarray, length in the time axis == window_length.
+    '''
+    slices = [slice(None)] * data.ndim
+    slices[axis] = slice(start, start+window_length)
+    return data[tuple(slices)]
+
+
+def magnitude_warp(data:np.ndarray, axis:int, n_knots:int,
+        std:float, preserve_bound:bool=False) -> np.ndarray:
+    ''' Warp the data magnitude by a smooth curve along the time axis.
+    args:
+        data: np.ndarray, with any shape and dtype.
+        axis: int, the index of time axis.
+        n_knots: int, the number of random knots on the random curve.
+        std: float, the standard deviations of knots.
+        preserve_bound: bool, whether to preserve data magnitude at the start
+            and end of the time series. Default is False.
+    returns:
+        np.ndarray, with the same shape as data.
+    '''
+    N = data.shape[axis]
+    x_knots = np.arange(n_knots) * N / (n_knots-1)
+    y_knots = 1.0 + np.random.randn(n_knots) * std
+    if preserve_bound:
+        y_knots[0], y_knots[-1] = 1.0, 1.0
+    tck = interp.splrep(x_knots, y_knots, s=0, per=False)
+    ys = interp.splev(np.arange(N), tck, der=0)
+    slices = [None] * data.ndim
+    slices[axis] = slice(None)
+    return data * ys[tuple(slices)]
+
+
+def time_warp(data:np.ndarray, axis:int, n_knots:int, std:float) -> np.ndarray:
+    ''' Warp the timestamps by a smooth curve. Unlike magnitude warping,
+        time warping always preserves the timestamps at the start and end.
+    args:
+        data: np.ndarray, with any shape and dtype.
+        axis: int, the index of time axis.
+        n_knots: int, the number of random knots on the random curve.
+            To be unified with magnitude warping, n_knots includes the start
+            and end timestamps, though they are not warped, which means,
+            if n_knots == 2, nothing will happen.
+        std: float, the standard deviations of knots.
+    returns:
+        np.ndarray, the warped data.
+    '''
+    N = data.shape[axis]
+    x_knots = np.linspace(0, 1, num=n_knots, endpoint=True, dtype=np.float32)
+    y_knots = x_knots + np.random.randn(n_knots) * std
+    y_knots[0], y_knots[-1] = 0.0, 1.0
+    tck = interp.splrep(x_knots, y_knots, s=0, per=False)
+    xs = np.linspace(0, 1, num=N, endpoint=True, dtype=np.float32)
+    ts = (N-1) * interp.splev(xs, tck, der=0)
+    ts = ts.clip(0, N-1)
+    interp_func = interp.interp1d(np.arange(N), data, axis=axis)
+    return interp_func(ts)
+
+
+if __name__ == '__main__':
+    ts = np.arange(10, dtype=np.float32)
+    ys = np.sin(0.5*np.pi*ts)
+    resampled = resample(ys, axis=0, ratio=0.5)
+    plt.plot(resampled)
+    plt.show()
