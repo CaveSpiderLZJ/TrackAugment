@@ -1,5 +1,6 @@
 import os
 import cv2
+import time
 import tqdm
 import numpy as np
 import pandas as pd
@@ -75,7 +76,7 @@ def output_track_video(record:Record, save_path:str, start_frame:int, end_frame:
 def visualize_track_to_imu(record:Record) -> None:
     # prepare imu data
     imu_data = record.imu_data
-    start_imu, end_imu = 2500, 5000
+    start_imu, end_imu = 3000, 4000
     acc = imu_data['acc']
     acc = np.column_stack([acc[axis] for axis in ('x','y','z')])[start_imu:end_imu,:]
     acc = aug.down_sample_by_step(acc, axis=0, step=5)
@@ -84,9 +85,9 @@ def visualize_track_to_imu(record:Record) -> None:
     gyro = aug.down_sample_by_step(gyro, axis=0, step=5)
     # prepare track data
     track_data = record.track_data
-    start_track, end_track = 2934, 3934
-    center_pos = 1e-3*track_data['center_pos'][start_track:end_track,:]
-    marker_pos = 1e-3*track_data['marker_pos'][:,start_track:end_track,:]
+    start_track, end_track = 3134, 3534
+    center_pos = track_data['center_pos'][start_track:end_track,:]
+    marker_pos = track_data['marker_pos'][:,start_track:end_track,:]
     axes = aug.calc_local_axes(marker_pos)
     generated_acc = aug.track_to_acc(center_pos, axes, 200.0)
     generated_acc = aug.down_sample_by_step(generated_acc, axis=0, step=2)
@@ -160,8 +161,8 @@ def visualize_track(record:Record) -> None:
     # prepare track data
     track_data = record.track_data
     start_track, end_track = 3134, 3334
-    center_pos = 1e-3*track_data['center_pos'][start_track:end_track,:]
-    marker_pos = 1e-3*track_data['marker_pos'][:,start_track:end_track,:]
+    center_pos = track_data['center_pos'][start_track:end_track,:]
+    marker_pos = track_data['marker_pos'][:,start_track:end_track,:]
     center_pos = aug.down_sample_by_step(center_pos, axis=0, step=2)
     marker_pos = aug.down_sample_by_step(marker_pos, axis=1, step=2)
     axes = aug.calc_local_axes(marker_pos)
@@ -207,7 +208,7 @@ def visualize_imu_to_track(record:Record):
     # down_sample
     acc = aug.down_sample_by_step(acc, axis=0, step=5)
     gyro = aug.down_sample_by_step(gyro, axis=0, step=5)
-    center_pos = 1e-3 * aug.down_sample_by_step(center_pos, axis=0, step=2)
+    center_pos = aug.down_sample_by_step(center_pos, axis=0, step=2)
     axes = aug.down_sample_by_step(axes, axis=1, step=2)
     bound_pos = np.concatenate([center_pos[:1,:],center_pos[-1:,:]], axis=0)
     bound_velocity = 100*np.concatenate([center_pos[1:2,:]-center_pos[0:1,:],
@@ -258,8 +259,8 @@ def augment_track(record:Record):
     # prepare track data
     track_data = record.track_data
     start_track, end_track = 2934, 3934
-    center_pos = 1e-3*track_data['center_pos'][start_track:end_track,:]
-    marker_pos = 1e-3*track_data['marker_pos'][:,start_track:end_track,:]
+    center_pos = track_data['center_pos'][start_track:end_track,:]
+    marker_pos = track_data['marker_pos'][:,start_track:end_track,:]
     axes = aug.calc_local_axes(marker_pos)
     # augment data
     # augmented_pos = aug.jitter(center_pos, std=1e-3)
@@ -322,8 +323,8 @@ def augment_imu(record:Record):
     # prepare track data
     track_data = record.track_data
     start_track, end_track = 3134, 3334
-    center_pos = 1e-3*track_data['center_pos'][start_track:end_track,:]
-    marker_pos = 1e-3*track_data['marker_pos'][:,start_track:end_track,:]
+    center_pos = track_data['center_pos'][start_track:end_track,:]
+    marker_pos = track_data['marker_pos'][:,start_track:end_track,:]
     center_pos = aug.resample(center_pos, axis=0, ratio=2.5)
     marker_pos = aug.resample(marker_pos, axis=1, ratio=2.5)
     axes = aug.calc_local_axes(marker_pos)
@@ -378,8 +379,8 @@ def augment_imu(record:Record):
     for i in range(3): ax.plot(gyro[:,i])
     for i in range(3): ax.plot(augmented_gyro[:,i])
     plt.show()
-    
-    
+
+
 if __name__ == '__main__':
     task_list_id = 'TL13r912je'
     task_id = 'TKfvdarv6k'
@@ -387,10 +388,11 @@ if __name__ == '__main__':
     record_id = 'RDmb2zdzis'
     record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
     record = Record(record_path)
+     
     # output_track_video(record, 'track.mp4', 1934, 22934)
     # visualize_track_to_imu(record)
     # visualize_markers(record)
     # visualize_track(record)
     # visualize_imu_to_track(record)
     # augment_track(record)
-    augment_imu(record)
+    # augment_imu(record)
