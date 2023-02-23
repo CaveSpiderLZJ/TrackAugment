@@ -9,8 +9,8 @@ from data_process.filter import Butterworth
 
 
 # Warning: fs is hardcoded as the samping frequency of track data.
-butter_acc = Butterworth(fs=cf.FS_TRACK, cut=0.1*cf.FS_TRACK, mode='lowpass', order=1)
-butter_gyro = Butterworth(fs=cf.FS_TRACK, cut=0.2*cf.FS_TRACK, mode='lowpass', order=1)
+butter_acc = Butterworth(fs=cf.FS_PREPROCESS, cut=0.1*cf.FS_PREPROCESS, mode='lowpass', order=1)
+butter_gyro = Butterworth(fs=cf.FS_PREPROCESS, cut=0.2*cf.FS_PREPROCESS, mode='lowpass', order=1)
 
 
 def calc_local_axes(marker_pos:np.ndarray) -> np.ndarray:

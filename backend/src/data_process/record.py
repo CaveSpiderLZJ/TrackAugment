@@ -10,6 +10,7 @@ from matplotlib import pyplot as plt
 import file_utils as fu
 import config as cf
 from data_process import augment as aug
+from data_process.cutter import PeakCutter
 
 
 class Record:
@@ -35,6 +36,7 @@ class Record:
         self.load_imu_data()
         self.align_imu_data_frequency()
         self.align_track_and_imu_data()
+        self.cut_data()
         
         
     def load_track_data(self):
@@ -104,7 +106,7 @@ class Record:
         min_length = int(1e10)
         for sensor in sensor_types:
             sensor_data = imu_data[sensor]
-            resample_ratio = cf.FS_TRACK / cf.FS_IMU[sensor]
+            resample_ratio = cf.FS_PREPROCESS / cf.FS_IMU[sensor]
             for axis in sensor_data.keys():
                 axis_data = sensor_data[axis]
                 resampled_data = aug.resample(axis_data, axis=0, ratio=resample_ratio)
@@ -132,8 +134,9 @@ class Record:
         center_rot = track_data['center_rot']
         marker_pos = track_data['marker_pos']
         timestamps = track_data['timestamps']
+        # NOTE: should resample track data if FS_TRACK != FS_PREPROCESS
         axes = aug.calc_local_axes(marker_pos)
-        generated_gyro = aug.track_to_gyro(axes, cf.FS_TRACK)
+        generated_gyro = aug.track_to_gyro(axes, cf.FS_PREPROCESS)
         len_track = generated_gyro.shape[0]
         len_gyro = gyro.shape[0]
         step, length = 10, 1000
@@ -146,6 +149,29 @@ class Record:
             if err < min_err: min_err, off = err, i
         self.track_data = {'timestamps': timestamps[off:off+len_gyro], 'center_pos': center_pos[off:off+len_gyro,:],
             'center_rot': center_rot[off:off+len_gyro,:], 'marker_pos': marker_pos[:,off:off+len_gyro,:]}
+        
+    
+    def cut_data(self):
+        ''' Cut track and imu data to individual action samples.
+        '''
+        # calculate cut ranges from gyro
+        track_data = self.track_data
+        imu_data = self.imu_data
+        gyro = np.column_stack([imu_data['gyro'][axis] for axis in ('x','y','z')])
+        window_length = int(cf.WINDOW_DURATION * cf.FS_PREPROCESS)
+        cutter = PeakCutter(cf.N_SAMPLE, window_length, noise=0,
+            fs=cf.FS_PREPROCESS, fs_stop=0.005*cf.FS_PREPROCESS)
+        # discard the first sample
+        cut_ranges = cutter.cut_range(gyro)[1:]
+        # cut track and imu data
+        acc = np.column_stack([imu_data['acc'][axis] for axis in ('x','y','z')])
+        self.cutted_imu_data = {
+            'acc': np.row_stack([acc[None,l:r,:] for l, r in cut_ranges]),
+            'gyro': np.row_stack([gyro[None,l:r,:] for l, r in cut_ranges])}
+        self.cutted_track_data = {
+            'center_pos': np.row_stack([track_data['center_pos'][None,l:r,:] for l, r in cut_ranges]),
+            'center_rot': np.row_stack([track_data['center_rot'][None,l:r,:] for l, r in cut_ranges]),
+            'marker_pos': np.row_stack([track_data['marker_pos'][None,:,l:r,:] for l, r in cut_ranges])}
 
 
 if __name__ == '__main__':
