@@ -25,7 +25,7 @@ def get_record_list():
     if taskListId is None:
         return {}
 
-    taskList = file_utils.load_taskList_info(taskListId, 0)
+    taskList = file_utils.load_task_list_info(taskListId, 0)
     records = []
     for task in taskList['tasks']:
         c_taskId = task['id']
@@ -35,7 +35,7 @@ def get_record_list():
             c_subtaskId = subtask['id']
             if subtaskId is not None and subtaskId != "0" and c_subtaskId != subtaskId:
                 continue
-            recordlist_path = file_utils.get_recordlist_path(taskListId, c_taskId, c_subtaskId)
+            recordlist_path = file_utils.get_record_list_path(taskListId, c_taskId, c_subtaskId)
             if os.path.exists(recordlist_path):
                 with open(recordlist_path, 'r') as fin:
                     lines = fin.readlines()
@@ -81,7 +81,7 @@ def add_record():
     record_path = file_utils.get_record_path(taskListId, taskId, subtaskId, recordId)
     file_utils.mkdir(record_path)
     file_utils.save_json({}, os.path.join(record_path, str(timestamp)+ ".json"))
-    file_utils.append_recordlist(taskListId, taskId, subtaskId, userName, recordId)
+    file_utils.append_record_list(taskListId, taskId, subtaskId, userName, recordId)
     return {}
 
 '''
@@ -101,7 +101,7 @@ def delete_record():
     subtaskId = request.form.get("subtaskId")
     recordId = request.form.get("recordId")
     record_path = file_utils.get_record_path(taskListId, taskId, subtaskId, recordId)
-    file_utils.delete_recordlist(taskListId, taskId, subtaskId, recordId)
+    file_utils.delete_record_list(taskListId, taskId, subtaskId, recordId)
     file_utils.delete_dir(record_path)
     return {}
 

@@ -15,7 +15,7 @@ def export_csv(tasklistId, taskIds, trainId, timestamp, dataset_version='0.2'):
         'peakrandom': [RandomCutter(), PeakCutter('linear_acc', forward=100,
             length=GlobalVars.WINDOW_LENGTH, noise=20)]
     }
-    tasklist = file_utils.load_taskList_info(tasklistId)
+    tasklist = file_utils.load_task_list_info(tasklistId)
     records = []
     for task in tasklist['tasks']:
         taskId = task['id']
@@ -24,7 +24,7 @@ def export_csv(tasklistId, taskIds, trainId, timestamp, dataset_version='0.2'):
         for subtask in task['subtasks']:
             subtaskId = subtask['id']
             # a list of record id
-            recordlist = file_utils.load_recordlist(tasklistId, taskId, subtaskId, dataset_version)
+            recordlist = file_utils.load_record_list(tasklistId, taskId, subtaskId, dataset_version)
             for recordId in recordlist:
                 group_name = task['name']
                 group_id = taskIds.index(taskId)
