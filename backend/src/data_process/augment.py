@@ -4,12 +4,13 @@ from scipy import interpolate as interp
 from matplotlib import pyplot as plt
 from typing import Tuple, List, Dict
 
+import config as cf
 from data_process.filter import Butterworth
 
 
 # Warning: fs is hardcoded as the samping frequency of track data.
-butter_acc = Butterworth(fs=200.0, cut=20.0, mode='lowpass', order=1)
-butter_gyro = Butterworth(fs=200.0, cut=40.0, mode='lowpass', order=1)
+butter_acc = Butterworth(fs=cf.FS_PREPROCESS, cut=0.1*cf.FS_PREPROCESS, mode='lowpass', order=1)
+butter_gyro = Butterworth(fs=cf.FS_PREPROCESS, cut=0.2*cf.FS_PREPROCESS, mode='lowpass', order=1)
 
 
 def calc_local_axes(marker_pos:np.ndarray) -> np.ndarray:
@@ -22,10 +23,14 @@ def calc_local_axes(marker_pos:np.ndarray) -> np.ndarray:
             in the global frame. axes[0,:,:] represents the x axis direction and so on.
     '''
     x_axis = marker_pos[1,:,:] - marker_pos[0,:,:]
-    x_axis /= np.sqrt(np.sum(np.square(x_axis), axis=1)).clip(1e-8)[:,None]
+    x_length = np.sqrt(np.sum(np.square(x_axis), axis=1))
+    x_axis[x_length < 1e-8, :] = [1e-8, 0, 0]
+    x_axis /= np.sqrt(np.sum(np.square(x_axis), axis=1))[:,None]
     y_axis = marker_pos[4,:,:] - marker_pos[1,:,:]
     y_axis -= x_axis * np.sum(y_axis * x_axis, axis=1)[:,None]
-    y_axis /= np.sqrt(np.sum(np.square(y_axis), axis=1)).clip(1e-8)[:,None]
+    y_length = np.sqrt(np.sum(np.square(y_axis), axis=1))
+    y_axis[y_length < 1e-8, :] = [0, 1e-8, 0]
+    y_axis /= np.sqrt(np.sum(np.square(y_axis), axis=1))[:,None]
     z_axis = np.cross(x_axis, y_axis)
     return np.concatenate([x_axis[None,:,:], y_axis[None,:,:], z_axis[None,:,:]], axis=0)
 
@@ -126,14 +131,15 @@ def resample(data:np.ndarray, axis:int, ratio:float) -> np.ndarray:
         ratio: float, the number of resampled data points over
             the number of original data points.
     returns:
-        np.ndarray, the resampled data.
+        np.ndarray, the resampled data, dtype = the original dtype.
     '''
+    dtype = data.dtype
     N = data.shape[axis]
     M = int(N * ratio)
     t = np.arange(N, dtype=np.float32)
     x = np.linspace(0, N-1, num=M, endpoint=True)
     interp_func = interp.interp1d(t, data, kind='quadratic', axis=axis)
-    return interp_func(x)
+    return interp_func(x).astype(dtype)
 
 
 def down_sample_by_step(data:np.ndarray, axis:int, step:int) -> np.ndarray:

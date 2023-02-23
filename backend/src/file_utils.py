@@ -3,6 +3,9 @@ import json
 import shutil
 import hashlib
 
+import config as cf
+
+
 DEFAULT_TASKLIST_ID = "TL13r912je"
 DEFAULT_ROOT = os.path.join("..", "assets", "default")
 DATA_ROOT = os.path.join("..", "data")
@@ -210,6 +213,14 @@ def create_default_files():
     default_tasklist_dst = os.path.join(DATA_RECORD_ROOT, DEFAULT_TASKLIST_ID)
     if os.path.exists(default_tasklist_src) and not os.path.exists(default_tasklist_dst):
         shutil.copytree(default_tasklist_src, default_tasklist_dst)
+    
+    
+def check_cwd():
+    ''' Check current working directory.
+    '''
+    cwd = os.getcwd()
+    if not cwd.endswith(cf.WORKING_DIR):
+        raise Exception(f'Incorrect working directory. Must be: {cf.WORKING_DIR}')
         
 
 if __name__ == '__main__':

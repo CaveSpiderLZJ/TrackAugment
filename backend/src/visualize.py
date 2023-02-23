@@ -1,5 +1,6 @@
 import os
 import cv2
+import time
 import tqdm
 import numpy as np
 import pandas as pd
@@ -10,9 +11,12 @@ from matplotlib.pyplot import MultipleLocator
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from scipy.spatial.transform import Rotation
 
+import config as cf
 import file_utils as fu
 from data_process.record import Record
 from data_process import augment as aug
+from data_process.cutter import PeakCutter
+from data_process.filter import Butterworth
 
 
 def output_track_video(record:Record, save_path:str, start_frame:int, end_frame:int) -> None:
@@ -75,23 +79,23 @@ def output_track_video(record:Record, save_path:str, start_frame:int, end_frame:
 def visualize_track_to_imu(record:Record) -> None:
     # prepare imu data
     imu_data = record.imu_data
-    start_imu, end_imu = 2500, 5000
+    start_imu, end_imu = 0, 5000
     acc = imu_data['acc']
     acc = np.column_stack([acc[axis] for axis in ('x','y','z')])[start_imu:end_imu,:]
-    acc = aug.down_sample_by_step(acc, axis=0, step=5)
+    # acc = aug.down_sample_by_step(acc, axis=0, step=5)
     gyro = imu_data['gyro']
     gyro = np.column_stack([gyro[axis] for axis in ('x','y','z')])[start_imu:end_imu,:]
-    gyro = aug.down_sample_by_step(gyro, axis=0, step=5)
+    # gyro = aug.down_sample_by_step(gyro, axis=0, step=5)
     # prepare track data
     track_data = record.track_data
-    start_track, end_track = 2934, 3934
-    center_pos = 1e-3*track_data['center_pos'][start_track:end_track,:]
-    marker_pos = 1e-3*track_data['marker_pos'][:,start_track:end_track,:]
+    start_track, end_track = 0, 5000
+    center_pos = track_data['center_pos'][start_track:end_track,:]
+    marker_pos = track_data['marker_pos'][:,start_track:end_track,:]
     axes = aug.calc_local_axes(marker_pos)
-    generated_acc = aug.track_to_acc(center_pos, axes, 200.0)
-    generated_acc = aug.down_sample_by_step(generated_acc, axis=0, step=2)
-    generated_gyro = aug.track_to_gyro(axes, 200.0)
-    generated_gyro = aug.down_sample_by_step(generated_gyro, axis=0, step=2)
+    generated_acc = aug.track_to_acc(center_pos, axes, cf.FS_PREPROCESS)
+    # generated_acc = aug.down_sample_by_step(generated_acc, axis=0, step=2)
+    generated_gyro = aug.track_to_gyro(axes, cf.FS_PREPROCESS)
+    # generated_gyro = aug.down_sample_by_step(generated_gyro, axis=0, step=2)
     # MSE error
     mse_acc = aug.mse_error(acc, generated_acc)
     mse_gyro = aug.mse_error(gyro, generated_gyro)
@@ -160,8 +164,8 @@ def visualize_track(record:Record) -> None:
     # prepare track data
     track_data = record.track_data
     start_track, end_track = 3134, 3334
-    center_pos = 1e-3*track_data['center_pos'][start_track:end_track,:]
-    marker_pos = 1e-3*track_data['marker_pos'][:,start_track:end_track,:]
+    center_pos = track_data['center_pos'][start_track:end_track,:]
+    marker_pos = track_data['marker_pos'][:,start_track:end_track,:]
     center_pos = aug.down_sample_by_step(center_pos, axis=0, step=2)
     marker_pos = aug.down_sample_by_step(marker_pos, axis=1, step=2)
     axes = aug.calc_local_axes(marker_pos)
@@ -207,7 +211,7 @@ def visualize_imu_to_track(record:Record):
     # down_sample
     acc = aug.down_sample_by_step(acc, axis=0, step=5)
     gyro = aug.down_sample_by_step(gyro, axis=0, step=5)
-    center_pos = 1e-3 * aug.down_sample_by_step(center_pos, axis=0, step=2)
+    center_pos = aug.down_sample_by_step(center_pos, axis=0, step=2)
     axes = aug.down_sample_by_step(axes, axis=1, step=2)
     bound_pos = np.concatenate([center_pos[:1,:],center_pos[-1:,:]], axis=0)
     bound_velocity = 100*np.concatenate([center_pos[1:2,:]-center_pos[0:1,:],
@@ -258,8 +262,8 @@ def augment_track(record:Record):
     # prepare track data
     track_data = record.track_data
     start_track, end_track = 2934, 3934
-    center_pos = 1e-3*track_data['center_pos'][start_track:end_track,:]
-    marker_pos = 1e-3*track_data['marker_pos'][:,start_track:end_track,:]
+    center_pos = track_data['center_pos'][start_track:end_track,:]
+    marker_pos = track_data['marker_pos'][:,start_track:end_track,:]
     axes = aug.calc_local_axes(marker_pos)
     # augment data
     # augmented_pos = aug.jitter(center_pos, std=1e-3)
@@ -322,8 +326,8 @@ def augment_imu(record:Record):
     # prepare track data
     track_data = record.track_data
     start_track, end_track = 3134, 3334
-    center_pos = 1e-3*track_data['center_pos'][start_track:end_track,:]
-    marker_pos = 1e-3*track_data['marker_pos'][:,start_track:end_track,:]
+    center_pos = track_data['center_pos'][start_track:end_track,:]
+    marker_pos = track_data['marker_pos'][:,start_track:end_track,:]
     center_pos = aug.resample(center_pos, axis=0, ratio=2.5)
     marker_pos = aug.resample(marker_pos, axis=1, ratio=2.5)
     axes = aug.calc_local_axes(marker_pos)
@@ -379,18 +383,53 @@ def augment_imu(record:Record):
     for i in range(3): ax.plot(augmented_gyro[:,i])
     plt.show()
     
+
+def visualize_cutter(record:Record):
+    cutted_imu_data = record.cutted_imu_data
+    print(f'acc: {cutted_imu_data["acc"].shape}')
+    print(f'gyro: {cutted_imu_data["gyro"].shape}')
+    cutted_track_data = record.cutted_track_data
+    print(f'center_pos: {cutted_track_data["center_pos"].shape}')
+    print(f'center_rot: {cutted_track_data["center_rot"].shape}')
+    print(f'marker_pos: {cutted_track_data["marker_pos"].shape}')
     
+    
+def visualize_filter(record:Record):
+    data = record.cutted_imu_data['acc'][1,...]
+    data = aug.down_sample_by_step(data, axis=0, step=2)
+    butterworth = Butterworth(fs=100, cut=32, mode='highpass')
+    filtered = butterworth.filt(data, axis=0)
+    plt.subplot(2, 1, 1)
+    for i in range(3):
+        plt.plot(data[:,i])
+    plt.subplot(2, 1, 2)
+    for i in range(3):
+        plt.plot(filtered[:,i])
+    plt.show()
+    
+
 if __name__ == '__main__':
+    fu.check_cwd()
     task_list_id = 'TL13r912je'
     task_id = 'TKfvdarv6k'
-    subtask_id = 'ST6klid59e'
-    record_id = 'RDmb2zdzis'
+    # Shake
+    # subtask_id = 'ST6klid59e'
+    # record_id = 'RDmb2zdzis'
+    # DoubleShake
+    subtask_id = 'STxw6enkhj'
+    record_id = 'RD6fu3gmp6'
     record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
+    tic = time.perf_counter()
     record = Record(record_path)
+    toc = time.perf_counter()
+    print(f'time: {(toc-tic)*1000:.3f} ms')
+     
     # output_track_video(record, 'track.mp4', 1934, 22934)
     # visualize_track_to_imu(record)
     # visualize_markers(record)
     # visualize_track(record)
     # visualize_imu_to_track(record)
     # augment_track(record)
-    augment_imu(record)
+    # augment_imu(record)
+    # visualize_cutter(record)
+    visualize_filter(record)
