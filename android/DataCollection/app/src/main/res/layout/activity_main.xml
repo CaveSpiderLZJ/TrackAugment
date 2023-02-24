@@ -27,7 +27,7 @@
                     app:layout_constraintTop_toTopOf="parent"
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintEnd_toStartOf="@id/user_text"
-                    app:layout_constraintBottom_toTopOf="@id/task_label"/>
+                    app:layout_constraintBottom_toTopOf="@id/task_list_label"/>
 
                 <EditText
                     android:id="@+id/user_text"
@@ -42,13 +42,37 @@
                     app:layout_constraintBottom_toBottomOf="@id/user_label"/>
 
                 <TextView
+                    android:id="@+id/task_list_label"
+                    android:layout_width="@dimen/task_info_label_width"
+                    android:layout_height="wrap_content"
+                    android:layout_marginVertical="@dimen/task_info_margin_vertical"
+                    android:text="@string/task_list_hint"
+                    android:textSize="@dimen/default_text_size"
+                    app:layout_constraintTop_toBottomOf="@id/user_label"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintEnd_toStartOf="@id/task_list_spinner"
+                    app:layout_constraintBottom_toTopOf="@id/task_label"/>
+
+                <Spinner
+                    android:id="@+id/task_list_spinner"
+                    android:layout_width="@dimen/task_info_width"
+                    android:layout_height="wrap_content"
+                    android:layout_marginVertical="@dimen/task_info_margin_vertical"
+                    android:textSize="@dimen/default_text_size"
+                    app:layout_constraintTop_toTopOf="@id/task_list_label"
+                    app:layout_constraintStart_toEndOf="@id/task_list_label"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintBottom_toBottomOf="@id/task_list_label">
+                </Spinner>
+
+                <TextView
                     android:id="@+id/task_label"
                     android:layout_width="@dimen/task_info_label_width"
                     android:layout_height="wrap_content"
                     android:layout_marginVertical="@dimen/task_info_margin_vertical"
                     android:text="@string/task_hint"
                     android:textSize="@dimen/default_text_size"
-                    app:layout_constraintTop_toBottomOf="@id/user_label"
+                    app:layout_constraintTop_toBottomOf="@id/task_list_label"
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintEnd_toStartOf="@id/task_spinner"
                     app:layout_constraintBottom_toTopOf="@id/subtask_label"/>

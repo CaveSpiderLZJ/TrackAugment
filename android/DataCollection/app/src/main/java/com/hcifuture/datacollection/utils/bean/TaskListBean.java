@@ -24,8 +24,7 @@ import java.util.List;
  */
 public class TaskListBean implements Serializable {
     private String id;
-    private String date;
-    private String description;
+    private String name;
     private List<Task> tasks;
 
     public enum FILE_TYPE {
@@ -85,7 +84,7 @@ public class TaskListBean implements Serializable {
         String[] taskNames = new String[size];
         for(int i = 0; i < size; i++) {
             Task t = tasks.get(i);
-            taskNames[i] = t.getId() + ". " + t.getName();
+            taskNames[i] = t.getId() + "." + t.getName();
         }
         return taskNames;
     }
@@ -144,7 +143,7 @@ public class TaskListBean implements Serializable {
             String[] subtaskNames = new String[size];
             for(int i = 0; i < size; i++) {
                 Subtask t = getSubtasks().get(i);
-                subtaskNames[i] = t.getId() + ". " + t.getName();
+                subtaskNames[i] = t.getId() + "." + t.getName();
             }
             return subtaskNames;
         }
@@ -293,35 +292,27 @@ public class TaskListBean implements Serializable {
         }
     }
 
-    public List<Task> getTasks() {
-        return tasks;
+    public List<Task> getTasks() { return tasks; }
+
+    public String getId() { return id; }
+
+    public String getName() {
+        return name;
     }
 
-    public String getId() {
-        return id;
-    }
-
-    public String getDate() {
-        return date;
-    }
-
-    public String getDescription() {
-        return description;
+    public String[] getTaskListNames() {
+        return new String[]{ id + "." + name };
     }
 
     public void setId(String id) {
-        this.id = id;
+        id = id;
     }
 
     public void setTasks(List<Task> tasks) {
-        this.tasks = tasks;
+        tasks = tasks;
     }
 
-    public void setDate(String date) {
-        this.date = date;
-    }
-
-    public void setDescription(String description) {
-        this.description = description;
+    public void setName(String name) {
+        name = name;
     }
 }

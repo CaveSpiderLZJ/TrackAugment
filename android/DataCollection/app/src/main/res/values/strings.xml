@@ -10,6 +10,7 @@
     <string name="default_user">DefaultUser</string>
     <string name='text_placeholder'>Text placeholder</string>
     <string name="user_hint">用户名：</string>
+    <string name="task_list_hint">任务列表：</string>
     <string name="task_hint">任务：</string>
     <string name="subtask_hint">子任务：</string>
     <string name="video_switch_label">录制视频：</string>

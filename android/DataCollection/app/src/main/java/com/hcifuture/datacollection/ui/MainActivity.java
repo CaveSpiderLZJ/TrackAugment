@@ -44,6 +44,8 @@ public class MainActivity extends AppCompatActivity {
 
     // ui
     private EditText mUserText;
+    private Spinner mTaskListSpinner;
+    private ArrayAdapter<String> mTaskListAdapter;
     private Spinner mTaskSpinner;
     private ArrayAdapter<String> mTaskAdapter;
     private Spinner mSubtaskSpinner;
@@ -57,6 +59,7 @@ public class MainActivity extends AppCompatActivity {
 
     // task
     private TaskListBean mTaskList;  // queried from the backend
+    private String[] mTaskListNames;
     private String[] mTaskNames;
     private String[] mSubtaskNames;
     private int mCurrentTaskId = 0;
@@ -185,8 +188,15 @@ public class MainActivity extends AppCompatActivity {
         // init views
         mTaskDescription = findViewById(R.id.task_description);
         mTaskCounter = findViewById(R.id.task_counter);
+        mTaskListSpinner = findViewById(R.id.task_list_spinner);
         mTaskSpinner = findViewById(R.id.task_spinner);
         mSubtaskSpinner = findViewById(R.id.subtask_spinner);
+
+        // TODO: set task list
+        mTaskListNames = mTaskList.getTaskListNames();
+        mTaskListAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, mTaskListNames);
+        mTaskListAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        mTaskListSpinner.setAdapter(mTaskListAdapter);
 
         // choose tasks and subtasks
         mTaskNames = mTaskList.getTaskNames();
