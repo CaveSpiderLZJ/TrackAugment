@@ -36,7 +36,7 @@ def get_taskList_history():
     '''
     taskListId = request.args.get("taskListId")
 
-    taskList_path = file_utils.get_taskList_path(taskListId)
+    taskList_path = file_utils.get_task_list_path(taskListId)
     response = []
     for file_name in os.listdir(taskList_path):
         if file_name.startswith("TL") and len(file_name.split('_')) == 2:
@@ -60,7 +60,7 @@ def get_taskList():
     taskListId = request.args.get("taskListId")
     timestamp = request.args.get("timestamp") 
     print(f'taskListId: {taskListId}, timestamp: {timestamp}')
-    return file_utils.load_taskList_info(taskListId, timestamp)
+    return file_utils.load_task_list_info(taskListId)
 
 
 '''
@@ -76,9 +76,11 @@ def update_taskList():
     taskList = json.loads(request.form.get("taskList"))
     timestamp = int(request.form.get("timestamp"))
     taskListId = taskList['id']
+    task_list_path = file_utils.get_task_list_path(taskListId)
+    file_utils.mkdir(task_list_path)
 
-    taskList_info_path = file_utils.get_taskList_info_path(taskListId)
-    taskList_info_timestamp_path = file_utils.get_taskList_info_path(taskListId, timestamp)
+    taskList_info_path = file_utils.get_task_list_info_path(taskListId)
+    taskList_info_timestamp_path = file_utils.get_task_list_info_path(taskListId, timestamp)
     file_utils.save_json(taskList, taskList_info_path)
     file_utils.save_json(taskList, taskList_info_timestamp_path)
 

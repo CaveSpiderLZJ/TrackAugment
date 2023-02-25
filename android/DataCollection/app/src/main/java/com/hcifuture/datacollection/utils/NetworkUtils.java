@@ -3,7 +3,7 @@ package com.hcifuture.datacollection.utils;
 import android.content.Context;
 
 import com.hcifuture.datacollection.BuildConfig;
-import com.hcifuture.datacollection.utils.bean.TaskListBean;
+import com.hcifuture.datacollection.utils.bean.RootListBean;
 import com.google.gson.Gson;
 import com.lzy.okgo.OkGo;
 import com.lzy.okgo.callback.FileCallback;
@@ -17,6 +17,7 @@ import java.io.File;
 public class NetworkUtils {
     private static final String TAG = "NetworkUtils";
     private static final String ROOT_URL = BuildConfig.WEB_SERVER;
+    private static final String ROOT_LIST_URL = ROOT_URL + "/root_list";
     private static final String ALL_TASKLIST_URL = ROOT_URL + "/all_taskList";
     private static final String TASKLIST_HISTORY_URL = ROOT_URL + "/taskList_history";
     private static final String TASKLIST_URL = ROOT_URL + "/taskList";
@@ -45,10 +46,17 @@ public class NetworkUtils {
             );
      */
 
+    public static void getRootList(Context context, StringCallback callback) {
+        OkGo.<String>get(ROOT_LIST_URL).tag(context).execute(callback);
+    }
+
+    public static void updateRootList(Context context, RootListBean rootList, long timestamp, StringCallback callback) {
+        OkGo.<String>post(ROOT_LIST_URL).tag(context).params("root_list", gson.toJson(rootList))
+                .params("timestamp", timestamp).isMultipart(true).execute(callback);
+    }
+
     public static void getAllTaskList(Context context, StringCallback callback) {
-        OkGo.<String>get(ALL_TASKLIST_URL)
-                .tag(context)
-                .execute(callback);
+        OkGo.<String>get(ALL_TASKLIST_URL).tag(context).execute(callback);
     }
     
     public static void getTaskListHistory(Context context, String taskListId, StringCallback callback) {
@@ -66,7 +74,7 @@ public class NetworkUtils {
                 .execute(callback);
     }
 
-    public static void updateTaskList(Context context, TaskListBean tasklist, long timestamp, StringCallback callback) {
+    public static void updateTaskList(Context context, RootListBean tasklist, long timestamp, StringCallback callback) {
         OkGo.<String>post(TASKLIST_URL)
                 .tag(context)
                 .params("taskList", gson.toJson(tasklist))

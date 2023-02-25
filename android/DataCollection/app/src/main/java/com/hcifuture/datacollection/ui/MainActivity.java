@@ -9,25 +9,19 @@ import android.os.Bundle;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.provider.Settings;
-import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
-import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.Spinner;
 import android.widget.TextView;
 
 import com.hcifuture.datacollection.R;
 import com.hcifuture.datacollection.inference.Inferencer;
-import com.hcifuture.datacollection.service.MainService;
-import com.hcifuture.datacollection.utils.GlobalVariable;
-import com.hcifuture.datacollection.utils.bean.TaskListBean;
+import com.hcifuture.datacollection.utils.bean.RootListBean;
 import com.hcifuture.datacollection.data.Recorder;
 import com.hcifuture.datacollection.utils.NetworkUtils;
-import com.hcifuture.datacollection.utils.bean.StringListBean;
-import com.hcifuture.datacollection.visual.RecordListActivity;
 import com.google.gson.Gson;
 import com.lzy.okgo.callback.StringCallback;
 import com.lzy.okgo.model.Response;
@@ -44,6 +38,8 @@ public class MainActivity extends AppCompatActivity {
 
     // ui
     private EditText mUserText;
+    private Spinner mTaskListSpinner;
+    private ArrayAdapter<String> mTaskListAdapter;
     private Spinner mTaskSpinner;
     private ArrayAdapter<String> mTaskAdapter;
     private Spinner mSubtaskSpinner;
@@ -56,11 +52,13 @@ public class MainActivity extends AppCompatActivity {
     private Button mBtnAccess;
 
     // task
-    private TaskListBean mTaskList;  // queried from the backend
+    private RootListBean mRootList;  // queried from the backend
+    private String[] mTaskListNames;
     private String[] mTaskNames;
     private String[] mSubtaskNames;
-    private int mCurrentTaskId = 0;
-    private int mCurrentSubtaskId = 0;
+    private int mTaskListIdx = 0;
+    private int mTaskIdx = 0;
+    private int mSubtaskIdx = 0;
     private int mCurrentTic = 0;    // tic showed in task counter
     private int mTotalTics = 0;      // mCurrentTic / mTotalTic
     private Recorder mRecorder;
@@ -121,25 +119,12 @@ public class MainActivity extends AppCompatActivity {
         mInferencer.start(this);
     }
 
-    /**
-     * Called in onResume().
-     */
-    private void loadTaskListViaNetwork() {
-        NetworkUtils.getAllTaskList(this, new StringCallback() {
+    private void loadRootListViaNetwork() {
+        NetworkUtils.getRootList(this, new StringCallback() {
             @Override
             public void onSuccess(Response<String> response) {
-                StringListBean taskLists = new Gson().fromJson(response.body(), StringListBean.class);
-                if (taskLists.getResult().size() > 0) {
-                    String taskListId = taskLists.getResult().get(0);
-                    GlobalVariable.getInstance().putString("taskListId", taskListId);
-                    NetworkUtils.getTaskList(mContext, taskListId, 0, new StringCallback() {
-                        @Override
-                        public void onSuccess(Response<String> response) {
-                            mTaskList = new Gson().fromJson(response.body(), TaskListBean.class);
-                            initView();
-                        }
-                    });
-                }
+                mRootList = new Gson().fromJson(response.body(), RootListBean.class);
+                initView();
             }
         });
     }
@@ -147,7 +132,8 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        loadTaskListViaNetwork();
+        loadRootListViaNetwork();
+//        loadTaskListViaNetwork();
     }
 
     @Override
@@ -175,7 +161,7 @@ public class MainActivity extends AppCompatActivity {
 
     /**
      * Init the status of all UI components in main activity.
-     * Called in loadTaskListViaNetwork().
+     * Called in loadRootListViaNetwork().
      */
     private void initView() {
         // user text
@@ -185,19 +171,42 @@ public class MainActivity extends AppCompatActivity {
         // init views
         mTaskDescription = findViewById(R.id.task_description);
         mTaskCounter = findViewById(R.id.task_counter);
+        mTaskListSpinner = findViewById(R.id.task_list_spinner);
         mTaskSpinner = findViewById(R.id.task_spinner);
         mSubtaskSpinner = findViewById(R.id.subtask_spinner);
 
-        // choose tasks and subtasks
-        mTaskNames = mTaskList.getTaskNames();
-        mTaskAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, mTaskNames);
+        // task list spinner
+        mTaskListNames = mRootList.getTaskListNames();
+        mTaskListAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, mTaskListNames);
+        mTaskListAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        mTaskListSpinner.setAdapter(mTaskListAdapter);
+        mTaskListSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                mTaskListIdx = position;
+                mTaskNames = mRootList.getTaskLists().get(mTaskListIdx).getTaskNames();
+                mTaskAdapter = new ArrayAdapter<>(mContext, android.R.layout.simple_spinner_item, mTaskNames);
+                mTaskAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                mTaskSpinner.setAdapter(mTaskAdapter);
+                // TODO: check if subtask will change accordingly
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {}
+        });
+
+        // task spinner
+        if (mTaskListNames.length == 0) mTaskNames = new String[0];
+        else mTaskNames = mRootList.getTaskLists().get(mTaskListIdx).getTaskNames();
+        mTaskAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, mTaskListNames);
         mTaskAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         mTaskSpinner.setAdapter(mTaskAdapter);
         mTaskSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                mCurrentTaskId = position;
-                mSubtaskNames = mTaskList.getTasks().get(mCurrentTaskId).getSubtaskNames();
+                mTaskIdx = position;
+                mSubtaskNames = mRootList.getTaskLists().get(mTaskListIdx)
+                        .getTasks().get(mTaskIdx).getSubtaskNames();
                 mSubtaskAdapter = new ArrayAdapter<>(mContext, android.R.layout.simple_spinner_item, mSubtaskNames);
                 mSubtaskAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
                 mSubtaskSpinner.setAdapter(mSubtaskAdapter);
@@ -207,9 +216,10 @@ public class MainActivity extends AppCompatActivity {
             public void onNothingSelected(AdapterView<?> parent) {}
         });
 
+        // subtask spinner
         if (mTaskNames.length == 0) mSubtaskNames = new String[0];
-        else mSubtaskNames = mTaskList.getTasks().get(mCurrentTaskId).getSubtaskNames();
-
+        else mSubtaskNames = mRootList.getTaskLists().get(mTaskListIdx)
+                .getTasks().get(mTaskIdx).getSubtaskNames();
         mSubtaskAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, mSubtaskNames);
         mSubtaskAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         mSubtaskSpinner.setAdapter(mSubtaskAdapter);
@@ -218,13 +228,18 @@ public class MainActivity extends AppCompatActivity {
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 mRecorder.cancel();
                 enableButtons(false);
-                mCurrentSubtaskId = position;
+                mSubtaskIdx = position;
                 // set task description with the subtask name
-                mTaskDescription.setText(mSubtaskNames[mCurrentSubtaskId]);
+                String taskName = mRootList.getTaskLists()
+                        .get(mTaskListIdx).getTasks().get(mTaskIdx).getName();
+                String subtaskName = mRootList.getTaskLists().get(mTaskListIdx).getTasks().
+                        get(mTaskIdx).getSubtasks().get(mSubtaskIdx).getName();
+                mTaskDescription.setText(taskName + "." + subtaskName);
                 // init the task counter when subtask selected
-                TaskListBean.Task currentTask = mTaskList.getTasks().get(mCurrentTaskId);
-                TaskListBean.Task.Subtask currentSubtask = currentTask
-                        .getSubtasks().get(mCurrentSubtaskId);
+                RootListBean.TaskList.Task.Subtask currentSubtask = mRootList
+                        .getTaskLists().get(mTaskListIdx)
+                        .getTasks().get(mTaskIdx)
+                        .getSubtasks().get(mSubtaskIdx);
                 mCurrentTic = 0;
                 mTotalTics = currentSubtask.getTimes();
                 updateTaskCounter();
@@ -243,11 +258,13 @@ public class MainActivity extends AppCompatActivity {
 
         // click the start button to start recorder
         mBtnStart.setOnClickListener(view -> {
-            if (mCurrentTaskId < mTaskList.getTasks().size() &&
-                    mCurrentSubtaskId < mTaskList.getTasks().get(mCurrentTaskId).getSubtasks().size()) {
+            if (mTaskListIdx < mRootList.getTaskLists().size() &&
+                    mTaskIdx < mRootList.getTaskLists().get(mTaskListIdx).getTasks().size() &&
+                    mSubtaskIdx < mRootList.getTaskLists().get(mTaskListIdx).getTasks()
+                            .get(mTaskIdx).getSubtasks().size()) {
                 enableButtons(true);
-                mRecorder.start(mUserText.getText().toString(), mCurrentTaskId,
-                        mCurrentSubtaskId, mTaskList);
+                mRecorder.start(mUserText.getText().toString(), mTaskListIdx,
+                        mTaskIdx, mSubtaskIdx, mRootList);
             }
         });
 
@@ -261,7 +278,7 @@ public class MainActivity extends AppCompatActivity {
 
         // goto config task activity
         mBtnConfig.setOnClickListener(view -> {
-            Intent intent = new Intent(MainActivity.this, ConfigTaskActivity.class);
+            Intent intent = new Intent(MainActivity.this, ConfigTaskListActivity.class);
             startActivity(intent);
         });
 

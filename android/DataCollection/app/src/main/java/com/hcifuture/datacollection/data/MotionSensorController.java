@@ -7,10 +7,9 @@ import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.util.Log;
 
-import com.hcifuture.datacollection.utils.bean.TaskListBean;
+import com.hcifuture.datacollection.utils.bean.RootListBean;
 import com.hcifuture.datacollection.utils.FileUtils;
 import com.hcifuture.datacollection.utils.NetworkUtils;
-import com.google.gson.Gson;
 import com.lzy.okgo.callback.StringCallback;
 import com.lzy.okgo.model.Response;
 
@@ -199,7 +198,7 @@ public class MotionSensorController {
                        String recordId, long timestamp) {
         if (mSensorFile != null) {
             NetworkUtils.uploadRecordFile(mContext, mSensorFile,
-                    TaskListBean.FILE_TYPE.MOTION.ordinal(), taskListId, taskId,
+                    RootListBean.FILE_TYPE.MOTION.ordinal(), taskListId, taskId,
                     subtaskId, recordId, timestamp, new StringCallback() {
                 @Override
                 public void onSuccess(Response<String> response) { }

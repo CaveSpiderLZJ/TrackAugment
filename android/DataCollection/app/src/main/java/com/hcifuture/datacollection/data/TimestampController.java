@@ -2,7 +2,7 @@ package com.hcifuture.datacollection.data;
 
 import android.content.Context;
 
-import com.hcifuture.datacollection.utils.bean.TaskListBean;
+import com.hcifuture.datacollection.utils.bean.RootListBean;
 import com.hcifuture.datacollection.utils.FileUtils;
 import com.hcifuture.datacollection.utils.NetworkUtils;
 import com.google.gson.Gson;
@@ -47,7 +47,7 @@ public class TimestampController {
 
     public void upload(String taskListId, String taskId, String subtaskId, String recordId, long timestamp) {
         if (saveFile != null) {
-            NetworkUtils.uploadRecordFile(mContext, saveFile, TaskListBean.FILE_TYPE.TIMESTAMP.ordinal(), taskListId, taskId, subtaskId, recordId, timestamp, new StringCallback() {
+            NetworkUtils.uploadRecordFile(mContext, saveFile, RootListBean.FILE_TYPE.TIMESTAMP.ordinal(), taskListId, taskId, subtaskId, recordId, timestamp, new StringCallback() {
                 @Override
                 public void onSuccess(Response<String> response) {
                 }

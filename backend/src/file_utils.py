@@ -2,11 +2,12 @@ import os
 import json
 import shutil
 import hashlib
+from typing import Tuple, List, Dict
 
 import config as cf
 
 
-DEFAULT_TASKLIST_ID = "TL13r912je"
+DEFAULT_TASK_LIST_ID = "TL13r912je"
 DEFAULT_ROOT = os.path.join("..", "assets", "default")
 DATA_ROOT = os.path.join("..", "data")
 DATA_RECORD_ROOT = os.path.join(DATA_ROOT, "record")
@@ -40,38 +41,39 @@ def get_dex_user_path(user_id, name):
 def get_dex_path(user_id, name, timestamp):
     return os.path.join(get_dex_user_path(user_id, name), timestamp)
 
-def get_taskList_path(task_list_id):
+def get_task_list_path(task_list_id:str):
     return os.path.join(DATA_RECORD_ROOT, task_list_id)
 
-def get_task_path(task_list_id, task_id):
-    return os.path.join(get_taskList_path(task_list_id), task_id)
+def get_task_path(task_list_id:str, task_id:str):
+    return os.path.join(get_task_list_path(task_list_id), task_id)
 
-def get_subtask_path(task_list_id, task_id, subtask_id):
+def get_subtask_path(task_list_id:str, task_id:str, subtask_id:str):
     return os.path.join(get_task_path(task_list_id, task_id), subtask_id)
 
-def get_recordlist_path(task_list_id, task_id, subtask_id, dataset_version='0.2'):
+def get_record_list_path(task_list_id:str, task_id:str, subtask_id:str, dataset_version='0.2'):
     if dataset_version == '0.1':
         return os.path.join(get_subtask_path(task_list_id, task_id, subtask_id), 'recordlist.txt')
     return os.path.join(get_subtask_path(task_list_id, task_id, subtask_id), 'recordlist.json')
 
-def get_record_path(task_list_id, task_id, subtask_id, record_id):
+def get_record_path(task_list_id:str, task_id:str, subtask_id:str, record_id:str):
     return os.path.join(get_subtask_path(task_list_id, task_id, subtask_id), record_id)
 
-def get_taskList_info_path(task_list_id, timestamp = None):
-    if timestamp is None or str(timestamp) == "0":
-        return os.path.join(get_taskList_path(task_list_id), task_list_id + ".json")
-    return os.path.join(get_taskList_path(task_list_id), task_list_id + "_" + str(timestamp) + ".json")
+def get_root_list_info_path():
+    return os.path.join(DATA_RECORD_ROOT, 'root_list.json')
 
-def get_task_info_path(taskListid, taskid):
-    return os.path.join(get_task_path(taskListid, taskid), taskid + ".json")
+def get_task_list_info_path(task_list_id:str):
+    return os.path.join(get_task_list_path(task_list_id), task_list_id + ".json")
 
-def get_subtask_info_path(taskListid, taskid, subtask_id):
-    return os.path.join(get_subtask_path(taskListid, taskid, subtask_id), subtask_id + ".json")
+def get_task_info_path(task_list_id:str, task_id:str):
+    return os.path.join(get_task_path(task_list_id, task_id), task_id + ".json")
 
-def get_train_path(train_id):
+def get_subtask_info_path(task_list_id:str, taskid:str, subtask_id:str):
+    return os.path.join(get_subtask_path(task_list_id, taskid, subtask_id), subtask_id + ".json")
+
+def get_train_path(train_id:str):
     return os.path.join(DATA_TRAIN_ROOT, train_id)
 
-def get_train_info_path(train_id):
+def get_train_info_path(train_id:str):
     return os.path.join(get_train_path(train_id), train_id + '.json')
 
 def delete_dir(path):
@@ -80,7 +82,7 @@ def delete_dir(path):
     except:
         pass
 
-def mkdir(path):
+def mkdir(path:str):
     if not os.path.exists(path):
         os.makedirs(path)
 
@@ -91,54 +93,63 @@ def save_json(obj, path):
 def load_json(path):
     with open(path, 'r') as fin:
         return json.load(fin)
+    
 
-def load_taskList_info(task_list_id, timestamp = None):
-    taskList_info_path = get_taskList_info_path(task_list_id, timestamp)
-    if not os.path.exists(taskList_info_path):
-        print(f'task list info path: {taskList_info_path}')
-        taskList_info = {
+def load_root_list_info() -> List:
+    root_list_path = get_root_list_info_path()
+    if not os.path.exists(root_list_path): return []
+    with open(root_list_path, 'r') as f:
+        return json.load(f)
+
+
+def load_task_list_info(task_list_id):
+    task_list_info_path = get_task_list_info_path(task_list_id)
+    if not os.path.exists(task_list_info_path):
+        print(f'task list info path: {task_list_info_path}')
+        task_list_info = {
             'date': '2022.07.03',
             'description': 'Task list for pilot study.',
             'id': task_list_id,
             'tasks': []
         }
-        save_json(taskList_info, taskList_info_path)
-        return taskList_info
-    with open(taskList_info_path, 'r') as f:
-        data = json.load(f)
-        return data
+        save_json(task_list_info, task_list_info_path)
+        return task_list_info
+    with open(task_list_info_path, 'r') as f:
+        return json.load(f)
 
-def load_recordlist(task_list_id, task_id, subtask_id, dataset_version):
-    recordlist_path = get_recordlist_path(task_list_id, task_id, subtask_id, dataset_version)
-    if not os.path.exists(recordlist_path):
+
+def load_record_list(task_list_id, task_id, subtask_id, dataset_version):
+    record_list_path = get_record_list_path(task_list_id, task_id, subtask_id, dataset_version)
+    if not os.path.exists(record_list_path):
         return []
 
-    recordlist = []
+    record_list = []
     if dataset_version == '0.1':
-        with open(recordlist_path, 'r') as f:
+        with open(record_list_path, 'r') as f:
             lines = f.readlines()
             for line in lines:
                 record_id = line.strip()
-                if record_id.startswith('RD') and record_id not in recordlist:
-                    recordlist.append(record_id)
+                if record_id.startswith('RD') and record_id not in record_list:
+                    record_list.append(record_id)
     else:
-        with open(recordlist_path, 'r') as fin:
+        with open(record_list_path, 'r') as fin:
             records = json.load(fin)
             for record in records:
-                recordlist.append(record['record_id'])
+                record_list.append(record['record_id'])
         
-    return recordlist
+    return record_list
 
-def append_recordlist(task_list_id, task_id, subtask_id, userName, record_id, dataset_version='0.2'):
-    record_list_path = get_recordlist_path(task_list_id, task_id, subtask_id, dataset_version)
+
+def append_record_list(task_list_id, task_id, subtask_id, user_name, record_id, dataset_version='0.2'):
+    record_list_path = get_record_list_path(task_list_id, task_id, subtask_id, dataset_version)
     if not os.path.exists(record_list_path):
         save_json([], record_list_path)
     record_list:list = json.load(open(record_list_path, 'r'))
-    record_list.append({'user_name': userName, 'record_id': record_id})
+    record_list.append({'user_name': user_name, 'record_id': record_id})
     save_json(record_list, record_list_path)  
 
-def delete_recordlist(task_list_id, task_id, subtask_id, record_id, dataset_version='0.2'):
-    record_list_path = get_recordlist_path(task_list_id, task_id, subtask_id, dataset_version)
+def delete_record_list(task_list_id, task_id, subtask_id, record_id, dataset_version='0.2'):
+    record_list_path = get_record_list_path(task_list_id, task_id, subtask_id, dataset_version)
     if not os.path.exists(record_list_path): return
     record_list:list = json.load(open(record_list_path, 'r'))
     new_record_list = []
@@ -209,10 +220,10 @@ def create_default_files():
     mkdir(DATA_DEX_ROOT)
     mkdir(DATA_TEMP_ROOT)
     shutil.copyfile(os.path.join(DEFAULT_ROOT, "config.json"), os.path.join(DATA_FILE_ROOT, "config.json"))
-    default_tasklist_src = os.path.join(DEFAULT_ROOT, DEFAULT_TASKLIST_ID)
-    default_tasklist_dst = os.path.join(DATA_RECORD_ROOT, DEFAULT_TASKLIST_ID)
-    if os.path.exists(default_tasklist_src) and not os.path.exists(default_tasklist_dst):
-        shutil.copytree(default_tasklist_src, default_tasklist_dst)
+    default_task_list_src = os.path.join(DEFAULT_ROOT, DEFAULT_TASK_LIST_ID)
+    default_task_list_dst = os.path.join(DATA_RECORD_ROOT, DEFAULT_TASK_LIST_ID)
+    if os.path.exists(default_task_list_src) and not os.path.exists(default_task_list_dst):
+        shutil.copytree(default_task_list_src, default_task_list_dst)
     
     
 def check_cwd():
@@ -224,4 +235,5 @@ def check_cwd():
         
 
 if __name__ == '__main__':
-    pass
+    root_list = load_root_list()
+    print(root_list)

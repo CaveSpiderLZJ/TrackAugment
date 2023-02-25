@@ -5,14 +5,28 @@
     android:orientation="vertical">
 
     <TextView
-        android:id="@+id/task_id"
+        android:id="@+id/subtask_id"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_weight="1"
         android:textSize="20sp" />
 
     <TextView
-        android:id="@+id/task_name"
+        android:id="@+id/subtask_name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:textSize="20sp" />
+
+    <TextView
+        android:id="@+id/subtask_times"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:textSize="20sp" />
+
+    <TextView
+        android:id="@+id/subtask_duration"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_weight="1"

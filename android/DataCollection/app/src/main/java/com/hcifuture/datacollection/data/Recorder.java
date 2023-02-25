@@ -3,13 +3,10 @@ package com.hcifuture.datacollection.data;
 import android.content.Context;
 import android.os.CountDownTimer;
 import android.os.Handler;
-import android.util.Log;
-
-import androidx.appcompat.app.AppCompatActivity;
 
 import com.hcifuture.datacollection.BuildConfig;
 import com.hcifuture.datacollection.utils.RandomUtils;
-import com.hcifuture.datacollection.utils.bean.TaskListBean;
+import com.hcifuture.datacollection.utils.bean.RootListBean;
 import com.hcifuture.datacollection.utils.FileUtils;
 import com.hcifuture.datacollection.utils.NetworkUtils;
 import com.lzy.okgo.callback.StringCallback;
@@ -34,9 +31,10 @@ public class Recorder {
     private File mMotionSensorFile;
     private File mTimestampFile;
 
-    private TaskListBean mTaskList;
-    private TaskListBean.Task mTask;
-    private TaskListBean.Task.Subtask mSubtask;
+    private RootListBean mRootList;
+    private RootListBean.TaskList mTaskList;
+    private RootListBean.TaskList.Task mTask;
+    private RootListBean.TaskList.Task.Subtask mSubtask;
     private CountDownTimer mTimer;
     private RecorderListener mListener;
 
@@ -54,9 +52,10 @@ public class Recorder {
         FileUtils.makeDir(BuildConfig.SAVE_PATH);
     }
 
-    public void start(String userName, int taskId, int subtaskId, TaskListBean taskList) {
-        mTaskList = taskList;
-        mTask = taskList.getTasks().get(taskId);
+    public void start(String userName, int taskListId, int taskId, int subtaskId, RootListBean rootList) {
+        mRootList = rootList;
+        mTaskList = mRootList.getTaskLists().get(taskListId);
+        mTask = mTaskList.getTasks().get(taskId);
         mSubtask = mTask.getSubtasks().get(subtaskId);
         mTickCount = 0;
         mRecordId = RandomUtils.generateRandomRecordId();

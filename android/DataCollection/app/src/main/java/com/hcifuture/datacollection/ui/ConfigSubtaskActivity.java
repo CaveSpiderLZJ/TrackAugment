@@ -5,13 +5,15 @@ import androidx.appcompat.app.AppCompatActivity;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.widget.Button;
 import android.widget.ListView;
 import android.widget.TextView;
 
 import com.hcifuture.datacollection.R;
+import com.hcifuture.datacollection.ui.adapter.TaskAdapter;
 import com.hcifuture.datacollection.utils.GlobalVariable;
-import com.hcifuture.datacollection.utils.bean.TaskListBean;
+import com.hcifuture.datacollection.utils.bean.RootListBean;
 import com.hcifuture.datacollection.ui.adapter.SubtaskAdapter;
 import com.hcifuture.datacollection.utils.NetworkUtils;
 import com.google.gson.Gson;
@@ -23,61 +25,67 @@ import com.lzy.okgo.model.Response;
  * Jumped from the task in TaskAdapter.
  */
 public class ConfigSubtaskActivity extends AppCompatActivity {
+
     private Context mContext;
     private ListView mSubtaskListView;
-    private TaskListBean mTaskList;
-    private SubtaskAdapter mSubtaskAdapter;
     private TextView mTaskNameView;
-    private int mTaskId;
+    private SubtaskAdapter mSubtaskAdapter;
+    private int mTaskListIdx;
+    private int mTaskIdx;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_config_subtask);
         mContext = this;
-
-        Button backButton = findViewById(R.id.config_subtask_btn_back);
-        backButton.setOnClickListener((v) -> this.finish());
-
         mSubtaskListView = findViewById(R.id.config_subtask_list_view);
+        mTaskNameView = findViewById(R.id.config_subtask_title);
 
         Bundle bundle = getIntent().getExtras();
-        mTaskId = bundle.getInt("task_id");
+        mTaskListIdx = bundle.getInt("task_list_idx");
+        mTaskIdx = bundle.getInt("task_idx");
 
-        Button addButton = findViewById(R.id.config_subtask_btn_add_subtask);
-        addButton.setOnClickListener((v) -> {
+        Log.d("### ConfigSubtaskActivity.onCreate()", "mTaskListIdx = " + String.valueOf(mTaskListIdx)
+                + ", mTaskIdx = " + String.valueOf(mTaskIdx));
+
+        Button btnAdd = findViewById(R.id.config_subtask_btn_add);
+        btnAdd.setOnClickListener((v) -> {
             Bundle addBundle = new Bundle();
-            addBundle.putInt("task_id", mTaskId);
+            addBundle.putInt("task_list_idx", mTaskListIdx);
+            addBundle.putInt("task_idx", mTaskIdx);
             Intent intent = new Intent(ConfigSubtaskActivity.this, AddSubtaskActivity.class);
             intent.putExtras(addBundle);
             startActivity(intent);
         });
 
-        Button configButton = findViewById(R.id.config_subtask_btn_config_task);
-        configButton.setOnClickListener((v) -> {
-            Bundle configBundle = new Bundle();
-            configBundle.putInt("task_id", mTaskId);
+        Button btnBack = findViewById(R.id.config_subtask_btn_back);
+        btnBack.setOnClickListener((v) -> this.finish());
+
+        Button btnModify = findViewById(R.id.config_subtask_btn_modify);
+        btnModify.setOnClickListener((v) -> {
+            Bundle modifyBundle = new Bundle();
+            modifyBundle.putInt("task_list_idx", mTaskListIdx);
+            modifyBundle.putInt("task_idx", mTaskIdx);
             Intent intent = new Intent(ConfigSubtaskActivity.this, ModifyTaskActivity.class);
-            intent.putExtras(configBundle);
+            intent.putExtras(modifyBundle);
             startActivity(intent);
         });
-
-        mTaskNameView = findViewById(R.id.config_subtask_title);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        loadTaskListViaNetwork();
+        loadRootListViaNetwork();
     }
 
-    private void loadTaskListViaNetwork() {
-        NetworkUtils.getTaskList(mContext, GlobalVariable.getInstance().getString("taskListId"), 0, new StringCallback() {
+    private void loadRootListViaNetwork() {
+        NetworkUtils.getRootList(this, new StringCallback() {
             @Override
             public void onSuccess(Response<String> response) {
-                mTaskList = new Gson().fromJson(response.body(), TaskListBean.class);
-                mTaskNameView.setText("Task: " + mTaskList.getTasks().get(mTaskId).getName());
-                mSubtaskAdapter = new SubtaskAdapter(mContext, mTaskList, mTaskId);
+                RootListBean rootList = new Gson().fromJson(response.body(), RootListBean.class);
+                mTaskNameView.setText("Task: " + rootList.getTaskLists().get(mTaskListIdx)
+                        .getTasks().get(mTaskIdx).getName());
+                mSubtaskAdapter = new SubtaskAdapter(mContext, rootList, mTaskListIdx, mTaskIdx);
                 mSubtaskListView.setAdapter(mSubtaskAdapter);
             }
         });

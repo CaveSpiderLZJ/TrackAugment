@@ -4,66 +4,66 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".ui.ModifyTaskActivity">
+    tools:context=".ui.AddTaskListActivity">
 
     <TextView
-        android:id="@+id/modify_task_title"
+        android:id="@+id/add_task_list_title"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginVertical="@dimen/title_margin_vertical"
-        android:text="@string/modify_task_title"
+        android:text="@string/add_task_list_title"
         android:textSize="@dimen/title_text_size"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBottom_toTopOf="@id/modify_task_label_name"/>
+        app:layout_constraintBottom_toTopOf="@id/add_task_list_label_name"/>
 
     <TextView
-        android:id="@+id/modify_task_label_name"
+        android:id="@+id/add_task_list_label_name"
         android:layout_width="@dimen/add_task_label_width"
         android:layout_height="wrap_content"
         android:layout_marginStart="@dimen/add_task_margin_horizontal"
         android:text="@string/task_name_label"
         android:textSize="@dimen/default_text_size"
-        app:layout_constraintTop_toBottomOf="@id/modify_task_title"
+        app:layout_constraintTop_toBottomOf="@id/add_task_list_title"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toStartOf="@id/modify_task_edit_text_name"
-        app:layout_constraintBottom_toTopOf="@id/modify_task_btn_modify"/>
+        app:layout_constraintEnd_toStartOf="@id/add_task_edit_text_name"
+        app:layout_constraintBottom_toTopOf="@id/add_task_list_btn_add"/>
 
     <EditText
-        android:id="@+id/modify_task_edit_text_name"
+        android:id="@+id/add_task_list_edit_text_name"
         android:layout_width="@dimen/add_task_info_width"
         android:layout_height="wrap_content"
         android:layout_marginEnd="@dimen/add_task_margin_horizontal"
-        android:text="@string/default_task_name"
+        android:text="@string/default_task_list_name"
         android:textSize="@dimen/default_text_size"
-        app:layout_constraintTop_toTopOf="@id/modify_task_label_name"
-        app:layout_constraintStart_toEndOf="@id/modify_task_label_name"
+        app:layout_constraintTop_toTopOf="@id/add_task_list_label_name"
+        app:layout_constraintStart_toEndOf="@id/add_task_list_label_name"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBottom_toBottomOf="@id/modify_task_label_name"/>
+        app:layout_constraintBottom_toBottomOf="@id/add_task_list_label_name"/>
 
     <Button
-        android:id="@+id/modify_task_btn_modify"
+        android:id="@+id/add_task_list_btn_add"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginVertical="@dimen/title_margin_vertical"
-        android:text="@string/btn_modify"
+        android:text="@string/btn_add"
         android:textSize="@dimen/default_text_size"
-        app:layout_constraintTop_toBottomOf="@id/modify_task_label_name"
+        app:layout_constraintTop_toBottomOf="@id/add_task_list_label_name"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toStartOf="@id/modify_task_btn_cancel"
+        app:layout_constraintEnd_toStartOf="@id/add_task_list_btn_cancel"
         app:layout_constraintBottom_toBottomOf="parent"/>
 
     <Button
-        android:id="@+id/modify_task_btn_cancel"
+        android:id="@+id/add_task_list_btn_cancel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginVertical="@dimen/title_margin_vertical"
         android:text="@string/btn_cancel"
         android:textSize="@dimen/default_text_size"
-        app:layout_constraintTop_toTopOf="@id/modify_task_btn_modify"
-        app:layout_constraintStart_toEndOf="@id/modify_task_btn_modify"
+        app:layout_constraintTop_toTopOf="@id/add_task_list_btn_add"
+        app:layout_constraintStart_toEndOf="@id/add_task_list_btn_add"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBottom_toBottomOf="@id/modify_task_btn_modify"/>
+        app:layout_constraintBottom_toBottomOf="@id/add_task_list_btn_add"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
