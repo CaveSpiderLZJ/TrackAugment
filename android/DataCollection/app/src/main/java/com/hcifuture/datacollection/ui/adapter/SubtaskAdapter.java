@@ -13,7 +13,7 @@ import android.widget.TextView;
 import com.hcifuture.datacollection.R;
 import com.hcifuture.datacollection.ui.ModifySubtaskActivity;
 import com.hcifuture.datacollection.ui.NormalAlertDialog;
-import com.hcifuture.datacollection.utils.bean.TaskListBean;
+import com.hcifuture.datacollection.utils.bean.RootListBean;
 import com.hcifuture.datacollection.utils.NetworkUtils;
 import com.lzy.okgo.callback.StringCallback;
 import com.lzy.okgo.model.Response;
@@ -22,20 +22,23 @@ import java.util.List;
 
 public class SubtaskAdapter extends BaseAdapter {
     private Context mContext;
-    private LayoutInflater inflater;
-    private TaskListBean taskList;
-    private int task_id;
+    private RootListBean mRootList;
+    private LayoutInflater mInflater;
+    private int mTaskListIdx;
+    private int mTaskIdx;
 
-    public SubtaskAdapter(Context context, TaskListBean taskList, int task_id) {
-        this.mContext = context;
-        this.taskList = taskList;
-        this.task_id = task_id;
-        this.inflater = LayoutInflater.from(context);
+    public SubtaskAdapter(Context context, RootListBean rootList, int taskListIdx, int taskIdx) {
+        mContext = context;
+        mRootList = rootList;
+        mInflater = LayoutInflater.from(context);
+        mTaskListIdx = taskListIdx;
+        mTaskIdx = taskIdx;
     }
 
     @Override
     public int getCount() {
-        return taskList.getTasks().get(task_id).getSubtasks().size();
+        return mRootList.getTaskLists().get(mTaskListIdx)
+                .getTasks().get(mTaskIdx).getSubtasks().size();
     }
 
     @Override
@@ -50,56 +53,51 @@ public class SubtaskAdapter extends BaseAdapter {
 
     @Override
     public View getView(int i, View view, ViewGroup viewGroup) {
-        view = inflater.inflate(R.layout.fragment_task, null);
+        view = mInflater.inflate(R.layout.fragment_subtask, null);
+        TextView subtaskId = view.findViewById(R.id.subtask_id);
+        TextView subtaskName = view.findViewById(R.id.subtask_name);
+        TextView subtaskTimes = view.findViewById(R.id.subtask_times);
+        TextView subtaskDuration = view.findViewById(R.id.subtask_duration);
+        Button btnDelete = view.findViewById(R.id.btn_delete);
 
-        List<TaskListBean.Task.Subtask> subtasks = taskList.getTasks().get(task_id).getSubtasks();
-        TaskListBean.Task.Subtask subtask = taskList.getTasks().get(task_id).getSubtasks().get(i);
+        RootListBean.TaskList.Task.Subtask subtask = mRootList
+                .getTaskLists().get(mTaskListIdx).getTasks().get(mTaskIdx).getSubtasks().get(i);
+        subtaskId.setText("子任务ID：" + subtask.getId());
+        subtaskName.setText("子任务名称：" + subtask.getName());
+        subtaskTimes.setText("录制次数：" + subtask.getTimes());
+        subtaskDuration.setText("单次时长：" + subtask.getDuration() + " ms");
 
-        TextView taskId = view.findViewById(R.id.taskId);
-        TextView taskName = view.findViewById(R.id.taskName);
-        TextView taskTimes = view.findViewById(R.id.taskTimes);
-        TextView taskDuration = view.findViewById(R.id.taskDuration);
-//        TextView taskVideo = view.findViewById(R.id.taskVideo);
-//        TextView taskAudio = view.findViewById(R.id.taskAudio);
-
-        taskName.setText(subtask.getName());
-        taskId.setText("  编号:            " + subtask.getId());
-        taskTimes.setText("  录制次数:     " + subtask.getTimes());
-        taskDuration.setText("  单次时长:     " + subtask.getDuration() + " ms");
-//        taskVideo.setText("  开启摄像头: " + subtask.isVideo());
-//        taskAudio.setText("  开启麦克风: " + subtask.isAudio());
-
-        Button deleteButton = view.findViewById(R.id.deleteItemButton);
-
-        deleteButton.setOnClickListener((v) -> {
+        btnDelete.setOnClickListener((v) -> {
             NormalAlertDialog dialog = new NormalAlertDialog(mContext,
-                    "Delete subtask [" + subtask.getId() + "] ?",
-                    "");
+                    "Delete subtask: " + subtask.getId() + "?", "");
             dialog.setPositiveButton("Yes",
                     (dialogInterface, i1) -> {
                         String id = subtask.getId();
-                        for(int j = 0; j < subtasks.size(); j++) {
-                            if (subtasks.get(j).getId() == id) {
-                                subtasks.remove(j);
+                        List<RootListBean.TaskList.Task.Subtask> subtasks = mRootList
+                                .getTaskLists().get(mTaskListIdx).getTasks().get(mTaskIdx).getSubtasks();
+                        for (int j = 0; j < subtasks.size(); j++) {
+                            if (subtasks.get(j).getId().equals(id)) {
+                                mRootList.getTaskLists().get(mTaskListIdx).getTasks()
+                                        .get(mTaskIdx).deleteSubtask(j);
+                                break;
                             }
                         }
-                        NetworkUtils.updateTaskList(mContext, taskList, 0, new StringCallback() {
+                        NetworkUtils.updateRootList(mContext, mRootList, 0, new StringCallback() {
                             @Override
-                            public void onSuccess(Response<String> response) {
-                            }
+                            public void onSuccess(Response<String> response) {}
                         });
                         this.notifyDataSetChanged();
                     });
-            dialog.setNegativeButton("No",
-                    (dialogInterface, i12) -> dialog.dismiss());
+            dialog.setNegativeButton("No", (dialogInterface, i12) -> dialog.dismiss());
             dialog.create();
             dialog.show();
         });
 
         view.setOnClickListener((v) -> {
             Bundle bundle = new Bundle();
-            bundle.putInt("task_id", task_id);
-            bundle.putInt("subtask_id", i);
+            bundle.putInt("task_list_idx", mTaskListIdx);
+            bundle.putInt("task_idx", mTaskIdx);
+            bundle.putInt("subtask_idx", i);
             Intent intent = new Intent(mContext, ModifySubtaskActivity.class);
             intent.putExtras(bundle);
             mContext.startActivity(intent);

@@ -40,7 +40,7 @@ def update_root_list():
     root_list = json.loads(request.form.get('root_list'))
     root_list_info_path = fu.get_root_list_info_path()
     fu.save_json(root_list, root_list_info_path)
-    for task_list in root_list:
+    for task_list in root_list['tasklists']:
         task_list_id = task_list['id']
         task_list_path = fu.get_task_list_path(task_list_id)
         task_list_info_path = fu.get_task_list_info_path(task_list_id)

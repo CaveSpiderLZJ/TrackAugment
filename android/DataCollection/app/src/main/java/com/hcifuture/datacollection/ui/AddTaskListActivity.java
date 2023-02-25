@@ -22,7 +22,7 @@ import com.lzy.okgo.model.Response;
  * The activity used for adding a new task by users.
  * Jumped from ConfigTaskActivity.
  */
-public class AddTaskActivity extends AppCompatActivity {
+public class AddTaskListActivity extends AppCompatActivity {
 
     private AppCompatActivity mActivity;
     private Context mContext;
@@ -31,30 +31,27 @@ public class AddTaskActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_add_task);
+        setContentView(R.layout.activity_add_task_list);
 
         mActivity = this;
         mContext = this;
 
-        Bundle bundle = getIntent().getExtras();
-        int taskListIdx = bundle.getInt("task_list_idx");
-
-        mEditTextName = findViewById(R.id.add_task_edit_text_name);
-        Button btnAdd = findViewById(R.id.add_task_btn_add);
-        Button btnCancel = findViewById(R.id.add_task_btn_cancel);
-        btnAdd.setOnClickListener((v) -> addTask(taskListIdx));
+        mEditTextName = findViewById(R.id.add_task_list_edit_text_name);
+        Button btnAdd = findViewById(R.id.add_task_list_btn_add);
+        Button btnCancel = findViewById(R.id.add_task_list_btn_cancel);
+        btnAdd.setOnClickListener((v) -> addTaskList());
         btnCancel.setOnClickListener((v) -> this.finish());
     }
 
-    private void addTask(int taskListIdx) {
-        Log.d("AddTaskActivity", "addTask() called");
+    private void addTaskList() {
+        Log.d("AddTaskListActivity", "addNewTask() called");
         NetworkUtils.getRootList(mContext, new StringCallback() {
             @Override
             public void onSuccess(Response<String> response) {
                 RootListBean rootList = new Gson().fromJson(response.body(), RootListBean.class);
-                RootListBean.TaskList.Task task = new RootListBean.TaskList.Task(
-                        RandomUtils.generateRandomTaskId(), mEditTextName.getText().toString());
-                rootList.getTaskLists().get(taskListIdx).addTask(task);
+                RootListBean.TaskList taskList = new RootListBean.TaskList(
+                        RandomUtils.generateRandomTaskListId(), mEditTextName.getText().toString());
+                rootList.addTaskList(taskList);
                 NetworkUtils.updateRootList(mContext, rootList, 0, new StringCallback() {
                     @Override
                     public void onSuccess(Response<String> response) { mActivity.finish(); }

@@ -60,7 +60,7 @@ def get_taskList():
     taskListId = request.args.get("taskListId")
     timestamp = request.args.get("timestamp") 
     print(f'taskListId: {taskListId}, timestamp: {timestamp}')
-    return file_utils.load_task_list_info(taskListId, timestamp)
+    return file_utils.load_task_list_info(taskListId)
 
 
 '''

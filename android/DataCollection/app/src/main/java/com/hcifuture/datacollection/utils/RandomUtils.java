@@ -17,9 +17,7 @@ public class RandomUtils {
         return builder.toString();
     }
 
-    public static String generateRandomTaskListId() {
-        return "TL" + generateRandomId(8);
-    }
+    public static String generateRandomTaskListId() { return "TL" + generateRandomId(8); }
 
     public static String generateRandomTaskId() {
         return "TK" + generateRandomId(8);

@@ -94,78 +94,12 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toBottomOf="@id/add_subtask_label_duration"/>
 
-<!--    <TextView-->
-<!--        android:id="@+id/add_subtask_label_video_switch"-->
-<!--        android:layout_width="@dimen/add_task_label_width"-->
-<!--        android:layout_height="wrap_content"-->
-<!--        android:layout_marginStart="@dimen/add_task_margin_horizontal"-->
-<!--        android:text="@string/task_video_switch_label"-->
-<!--        android:textSize="@dimen/default_text_size"-->
-<!--        app:layout_constraintTop_toBottomOf="@id/add_subtask_label_duration"-->
-<!--        app:layout_constraintStart_toStartOf="parent"-->
-<!--        app:layout_constraintEnd_toStartOf="@id/add_subtask_video_switch"-->
-<!--        app:layout_constraintBottom_toTopOf="@id/add_subtask_label_video_facing"/>-->
-
-<!--    <CheckBox-->
-<!--        android:id="@+id/add_subtask_video_switch"-->
-<!--        android:layout_width="@dimen/add_task_info_width"-->
-<!--        android:layout_height="wrap_content"-->
-<!--        android:layout_marginEnd="@dimen/add_task_margin_horizontal"-->
-<!--        app:layout_constraintTop_toTopOf="@id/add_subtask_label_video_switch"-->
-<!--        app:layout_constraintStart_toEndOf="@id/add_subtask_label_video_switch"-->
-<!--        app:layout_constraintEnd_toEndOf="parent"-->
-<!--        app:layout_constraintBottom_toBottomOf="@id/add_subtask_label_video_switch"/>-->
-
-<!--    <TextView-->
-<!--        android:id="@+id/add_subtask_label_video_facing"-->
-<!--        android:layout_width="@dimen/add_task_label_width"-->
-<!--        android:layout_height="wrap_content"-->
-<!--        android:layout_marginStart="@dimen/add_task_margin_horizontal"-->
-<!--        android:text="@string/task_video_facing_label"-->
-<!--        android:textSize="@dimen/default_text_size"-->
-<!--        app:layout_constraintTop_toBottomOf="@id/add_subtask_label_video_switch"-->
-<!--        app:layout_constraintStart_toStartOf="parent"-->
-<!--        app:layout_constraintEnd_toStartOf="@id/add_subtask_video_facing"-->
-<!--        app:layout_constraintBottom_toTopOf="@id/add_subtask_label_audio_switch"/>-->
-
-<!--    <CheckBox-->
-<!--        android:id="@+id/add_subtask_video_facing"-->
-<!--        android:layout_width="@dimen/add_task_info_width"-->
-<!--        android:layout_height="wrap_content"-->
-<!--        android:layout_marginEnd="@dimen/add_task_margin_horizontal"-->
-<!--        app:layout_constraintTop_toTopOf="@id/add_subtask_label_video_facing"-->
-<!--        app:layout_constraintStart_toEndOf="@id/add_subtask_label_video_facing"-->
-<!--        app:layout_constraintEnd_toEndOf="parent"-->
-<!--        app:layout_constraintBottom_toBottomOf="@id/add_subtask_label_video_facing"/>-->
-
-<!--    <TextView-->
-<!--        android:id="@+id/add_subtask_label_audio_switch"-->
-<!--        android:layout_width="@dimen/add_task_label_width"-->
-<!--        android:layout_height="wrap_content"-->
-<!--        android:layout_marginStart="@dimen/add_task_margin_horizontal"-->
-<!--        android:text="@string/task_audio_switch_label"-->
-<!--        android:textSize="@dimen/default_text_size"-->
-<!--        app:layout_constraintTop_toBottomOf="@id/add_subtask_label_video_facing"-->
-<!--        app:layout_constraintStart_toStartOf="parent"-->
-<!--        app:layout_constraintEnd_toStartOf="@id/add_subtask_audio_switch"-->
-<!--        app:layout_constraintBottom_toTopOf="@id/add_subtask_btn_add"/>-->
-
-<!--    <CheckBox-->
-<!--        android:id="@+id/add_subtask_audio_switch"-->
-<!--        android:layout_width="@dimen/add_task_info_width"-->
-<!--        android:layout_height="wrap_content"-->
-<!--        android:layout_marginEnd="@dimen/add_task_margin_horizontal"-->
-<!--        app:layout_constraintTop_toTopOf="@id/add_subtask_label_audio_switch"-->
-<!--        app:layout_constraintStart_toEndOf="@id/add_subtask_label_audio_switch"-->
-<!--        app:layout_constraintEnd_toEndOf="parent"-->
-<!--        app:layout_constraintBottom_toBottomOf="@id/add_subtask_label_audio_switch"/>-->
-
     <Button
         android:id="@+id/add_subtask_btn_add"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginVertical="@dimen/title_margin_vertical"
-        android:text="@string/btn_add_task"
+        android:text="@string/btn_add"
         android:textSize="@dimen/default_text_size"
         app:layout_constraintTop_toBottomOf="@id/add_subtask_label_duration"
         app:layout_constraintStart_toStartOf="parent"
@@ -177,7 +111,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginVertical="@dimen/title_margin_vertical"
-        android:text="@string/btn_cancel_task"
+        android:text="@string/btn_cancel"
         android:textSize="@dimen/default_text_size"
         app:layout_constraintTop_toTopOf="@id/add_subtask_btn_add"
         app:layout_constraintStart_toEndOf="@id/add_subtask_btn_add"

@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".ui.AddTaskActivity">
+    tools:context=".ui.AddTaskListActivity">
 
     <TextView
         android:id="@+id/add_task_title"
@@ -28,7 +28,7 @@
         app:layout_constraintTop_toBottomOf="@id/add_task_title"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toStartOf="@id/add_task_edit_text_name"
-        app:layout_constraintBottom_toTopOf="@id/add_task_label_times"/>
+        app:layout_constraintBottom_toTopOf="@id/add_task_btn_add"/>
 
     <EditText
         android:id="@+id/add_task_edit_text_name"
@@ -42,110 +42,14 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toBottomOf="@id/add_task_label_name"/>
 
-    <TextView
-        android:id="@+id/add_task_label_times"
-        android:layout_width="@dimen/add_task_label_width"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="@dimen/add_task_margin_horizontal"
-        android:text="@string/task_times_label"
-        android:textSize="@dimen/default_text_size"
-        app:layout_constraintTop_toBottomOf="@id/add_task_label_name"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toStartOf="@id/add_task_edit_text_times"
-        app:layout_constraintBottom_toTopOf="@id/add_task_label_duration"/>
-
-    <EditText
-        android:id="@+id/add_task_edit_text_times"
-        android:layout_width="@dimen/add_task_info_width"
-        android:layout_height="wrap_content"
-        android:layout_marginEnd="@dimen/add_task_margin_horizontal"
-        android:digits="0123456789"
-        android:inputType="number"
-        android:text="@string/default_task_times"
-        android:textSize="@dimen/default_text_size"
-        app:layout_constraintTop_toTopOf="@id/add_task_label_times"
-        app:layout_constraintStart_toEndOf="@id/add_task_label_times"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBottom_toBottomOf="@id/add_task_label_times"/>
-
-    <TextView
-        android:id="@+id/add_task_label_duration"
-        android:layout_width="@dimen/add_task_label_width"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="@dimen/add_task_margin_horizontal"
-        android:text="@string/task_duration_label"
-        android:textSize="@dimen/default_text_size"
-        app:layout_constraintTop_toBottomOf="@id/add_task_label_times"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toStartOf="@id/add_task_edit_text_duration"
-        app:layout_constraintBottom_toTopOf="@id/add_task_btn_add"/>
-
-    <EditText
-        android:id="@+id/add_task_edit_text_duration"
-        android:layout_width="@dimen/add_task_info_width"
-        android:layout_height="wrap_content"
-        android:layout_marginEnd="@dimen/add_task_margin_horizontal"
-        android:digits="0123456789"
-        android:inputType="number"
-        android:text="@string/default_task_duration"
-        android:textSize="@dimen/default_text_size"
-        app:layout_constraintTop_toTopOf="@id/add_task_label_duration"
-        app:layout_constraintStart_toEndOf="@id/add_task_label_duration"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBottom_toBottomOf="@id/add_task_label_duration"/>
-
-<!--    <TextView-->
-<!--        android:id="@+id/add_task_label_video_switch"-->
-<!--        android:layout_width="@dimen/add_task_label_width"-->
-<!--        android:layout_height="wrap_content"-->
-<!--        android:layout_marginStart="@dimen/add_task_margin_horizontal"-->
-<!--        android:text="@string/task_video_switch_label"-->
-<!--        android:textSize="@dimen/default_text_size"-->
-<!--        app:layout_constraintTop_toBottomOf="@id/add_task_label_duration"-->
-<!--        app:layout_constraintStart_toStartOf="parent"-->
-<!--        app:layout_constraintEnd_toStartOf="@id/add_task_video_switch"-->
-<!--        app:layout_constraintBottom_toTopOf="@id/add_task_label_audio_switch"/>-->
-
-<!--    <CheckBox-->
-<!--        android:id="@+id/add_task_video_switch"-->
-<!--        android:layout_width="@dimen/add_task_info_width"-->
-<!--        android:layout_height="wrap_content"-->
-<!--        android:layout_marginEnd="@dimen/add_task_margin_horizontal"-->
-<!--        app:layout_constraintTop_toTopOf="@id/add_task_label_video_switch"-->
-<!--        app:layout_constraintStart_toEndOf="@id/add_task_label_video_switch"-->
-<!--        app:layout_constraintEnd_toEndOf="parent"-->
-<!--        app:layout_constraintBottom_toBottomOf="@id/add_task_label_video_switch"/>-->
-
-<!--    <TextView-->
-<!--        android:id="@+id/add_task_label_audio_switch"-->
-<!--        android:layout_width="@dimen/add_task_label_width"-->
-<!--        android:layout_height="wrap_content"-->
-<!--        android:layout_marginStart="@dimen/add_task_margin_horizontal"-->
-<!--        android:text="@string/task_audio_switch_label"-->
-<!--        android:textSize="@dimen/default_text_size"-->
-<!--        app:layout_constraintTop_toBottomOf="@id/add_task_label_video_switch"-->
-<!--        app:layout_constraintStart_toStartOf="parent"-->
-<!--        app:layout_constraintEnd_toStartOf="@id/add_task_audio_switch"-->
-<!--        app:layout_constraintBottom_toTopOf="@id/add_task_btn_add"/>-->
-
-<!--    <CheckBox-->
-<!--        android:id="@+id/add_task_audio_switch"-->
-<!--        android:layout_width="@dimen/add_task_info_width"-->
-<!--        android:layout_height="wrap_content"-->
-<!--        android:layout_marginEnd="@dimen/add_task_margin_horizontal"-->
-<!--        app:layout_constraintTop_toTopOf="@id/add_task_label_audio_switch"-->
-<!--        app:layout_constraintStart_toEndOf="@id/add_task_label_audio_switch"-->
-<!--        app:layout_constraintEnd_toEndOf="parent"-->
-<!--        app:layout_constraintBottom_toBottomOf="@id/add_task_label_audio_switch"/>-->
-
     <Button
         android:id="@+id/add_task_btn_add"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginVertical="@dimen/title_margin_vertical"
-        android:text="@string/btn_add_task"
+        android:text="@string/btn_add"
         android:textSize="@dimen/default_text_size"
-        app:layout_constraintTop_toBottomOf="@id/add_task_label_duration"
+        app:layout_constraintTop_toBottomOf="@id/add_task_label_name"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toStartOf="@id/add_task_btn_cancel"
         app:layout_constraintBottom_toBottomOf="parent"/>
@@ -155,7 +59,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginVertical="@dimen/title_margin_vertical"
-        android:text="@string/btn_cancel_task"
+        android:text="@string/btn_cancel"
         android:textSize="@dimen/default_text_size"
         app:layout_constraintTop_toTopOf="@id/add_task_btn_add"
         app:layout_constraintStart_toEndOf="@id/add_task_btn_add"

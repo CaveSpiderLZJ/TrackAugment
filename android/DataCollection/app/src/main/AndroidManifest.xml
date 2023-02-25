@@ -39,30 +39,10 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
-        <activity
-            android:name=".ui.TestModelActivity"
-            android:exported="false" />
-        <activity
-            android:name=".visual.VisualizeTrainLogActivity"
-            android:exported="false" />
 
         <meta-data
             android:name="com.amap.api.v2.apikey"
             android:value="69357d253cabe081f5eca256eb64c41a" />
-
-        <activity
-            android:name=".visual.VisualizeRecordActivity"
-            android:exported="false" />
-        <activity
-            android:name=".visual.RecordListActivity"
-            android:exported="false" />
-        <activity
-            android:name=".ui.ModifySubtaskActivity"
-            android:exported="false" />
-        <activity
-            android:name=".ui.ModifyTaskActivity"
-            android:exported="false" />
-
         <service
             android:name="com.hcifuture.datacollection.service.MainService"
             android:enabled="true"
@@ -78,24 +58,6 @@
         </service>
 
         <activity
-            android:name=".ui.NewTrainingProgramActivity"
-            android:exported="false" />
-        <activity
-            android:name=".ui.TrainActivity"
-            android:exported="false" />
-        <activity
-            android:name=".ui.AddSubtaskActivity"
-            android:exported="false" />
-        <activity
-            android:name=".ui.AddTaskActivity"
-            android:exported="false" />
-        <activity
-            android:name=".ui.ConfigSubtaskActivity"
-            android:exported="false" />
-        <activity
-            android:name=".ui.ConfigTaskActivity"
-            android:exported="false" />
-        <activity
             android:name=".ui.MainActivity"
             android:exported="true">
             <intent-filter>
@@ -104,6 +66,33 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".ui.ConfigTaskListActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.ConfigTaskActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.ConfigSubtaskActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.AddTaskListActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.AddTaskActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.AddSubtaskActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.ModifyTaskListActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.ModifyTaskActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.ModifySubtaskActivity"
+            android:exported="false" />
     </application>
 
 </manifest>

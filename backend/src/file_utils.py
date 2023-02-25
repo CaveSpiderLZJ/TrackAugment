@@ -102,8 +102,8 @@ def load_root_list_info() -> List:
         return json.load(f)
 
 
-def load_task_list_info(task_list_id, timestamp = None):
-    task_list_info_path = get_task_list_info_path(task_list_id, timestamp)
+def load_task_list_info(task_list_id):
+    task_list_info_path = get_task_list_info_path(task_list_id)
     if not os.path.exists(task_list_info_path):
         print(f'task list info path: {task_list_info_path}')
         task_list_info = {
