@@ -8,8 +8,6 @@ import android.util.Log;
 
 import com.hcifuture.datacollection.BuildConfig;
 import com.hcifuture.datacollection.data.SensorData;
-import com.hcifuture.datacollection.data.SensorData1D;
-import com.hcifuture.datacollection.data.SensorData3D;
 import com.lzy.okgo.callback.FileCallback;
 import com.lzy.okgo.callback.StringCallback;
 import com.lzy.okgo.model.Response;
@@ -70,55 +68,7 @@ public class FileUtils {
         }
     }
 
-    public static void writeIMUDataToFile(List<SensorData3D> accData, List<SensorData3D> magData,
-            List<SensorData3D> gyroData, List<SensorData3D> linearAccData, File saveFile) {
-        makeFile(saveFile);
-        try {
-            FileOutputStream fos = new FileOutputStream(saveFile);
-            DataOutputStream dos = new DataOutputStream(fos);
-            int size;
-            // write accelerometer data
-            size = accData.size();
-            dos.writeInt(size);
-            for (SensorData3D unit: accData) {
-                float[] values = unit.v;
-                dos.writeFloat(values[0]); dos.writeFloat(values[1]); dos.writeFloat(values[2]);
-                dos.writeLong(unit.t);
-            }
-            // write magnetic field data
-            size = magData.size();
-            dos.writeInt(size);
-            for (SensorData3D unit: magData) {
-                float[] values = unit.v;
-                dos.writeFloat(values[0]); dos.writeFloat(values[1]); dos.writeFloat(values[2]);
-                dos.writeLong(unit.t);
-            }
-            // write gyroscope data
-            size = gyroData.size();
-            dos.writeInt(size);
-            for (SensorData3D unit: gyroData) {
-                float[] values = unit.v;
-                dos.writeFloat(values[0]); dos.writeFloat(values[1]); dos.writeFloat(values[2]);
-                dos.writeLong(unit.t);
-            }
-            // write linear accelerometer data
-            size = linearAccData.size();
-            dos.writeInt(size);
-            for (SensorData3D unit: linearAccData) {
-                float[] values = unit.v;
-                dos.writeFloat(values[0]); dos.writeFloat(values[1]); dos.writeFloat(values[2]);
-                dos.writeLong(unit.t);
-            }
-            dos.flush();
-            dos.close();
-            fos.flush();
-            fos.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public static void writeIMUDataToFile2(List<List<SensorData>> sensorData, File saveFile) {
+    public static void writeIMUDataToFile(List<List<SensorData>> sensorData, File saveFile) {
         makeFile(saveFile);
         try {
             FileOutputStream fos = new FileOutputStream(saveFile);
@@ -137,27 +87,6 @@ public class FileUtils {
             }
             dos.flush(); dos.close();
             fos.flush(); fos.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public static void writeLightSensorDataToFile(List<SensorData1D> data, File saveFile) {
-        makeFile(saveFile);
-        try {
-            FileOutputStream fos = new FileOutputStream(saveFile);
-            DataOutputStream dos = new DataOutputStream(fos);
-            int size = data.size();
-            Log.d("writeLightSensorDataToFile", "data size: " + size);
-            dos.writeInt(size);
-            for (SensorData1D unit: data) {
-                dos.writeFloat(unit.v);
-                dos.writeLong(unit.t);
-            }
-            dos.flush();
-            dos.close();
-            fos.flush();
-            fos.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -183,76 +112,6 @@ public class FileUtils {
         } catch (Exception e) {
             e.printStackTrace();
         }
-    }
-
-    /**
-     * Parse the motion data .bin file to the following data structure:
-     * {
-     *     'acc_data': {'x': [...], 'y': [...], 'z': [...], 't': [...]},
-     *     'mag_data': {'x': [...], 'y': [...], 'z': [...], 't': [...]},
-     *     'gyro_data': {'x': [...], 'y': [...], 'z': [...], 't': [...]},
-     *     'linear_acc_data': {'x': [...], 'y': [...], 'z': [...], 't': [...]},
-     * }
-     * @param file The The motion .bin file acquired from backend,
-     *             with the following data structure:
-     *             [acc_size(float), [x(float), y(float), z(float), t(long)](acc_size),
-     *              mag_size(float), [x(float), y(float), z(float), t(long)](mag_size),
-     *              gyro_size(float), [x(float), y(float), z(float), t(long)](gyro_size),
-     *              linear_acc_size(float), [x(float), y(float), z(float), t(long)](linear_acc_size)]
-     * @return
-     */
-    public static Map<String, Map<String, List<Double>>> loadMotionData(File file) {
-        Map<String, Map<String, List<Double>>> data = new HashMap<>();
-        try {
-            InputStream fis = new FileInputStream(file);
-            DataInputStream dis = new DataInputStream(fis);
-            String[] dataLabels = {"acc_data", "mag_data", "gyro_data", "linear_acc_data"};
-            for (String dataLabel: dataLabels) {
-                int size = dis.readInt();
-                List<Double> x = new ArrayList<>(); List<Double> y = new ArrayList<>();
-                List<Double> z = new ArrayList<>(); List<Double> t = new ArrayList<>();
-                for (int i = 0; i < size; i++) {
-                    x.add((double)dis.readFloat()); y.add((double)dis.readFloat());
-                    z.add((double)dis.readFloat()); t.add((double)dis.readLong());
-                }
-                Map<String, List<Double>> subData = new HashMap<>();
-                subData.put("x", x); subData.put("y", y);
-                subData.put("z", z); subData.put("t", t);
-                data.put(dataLabel, subData);
-            }
-            dis.close();
-            fis.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return data;
-    }
-
-    /**
-     * Parse the light data .bin file to the following data structure:*
-     * {'v': [...], 't': [...]}
-     * @param file The The light .bin file acquired from backend,
-     *             with the following data structure:
-     *             [size(float), [v(float), t(long)](size)]
-     * @return
-     */
-    public static Map<String, List<Double>> loadLightData(File file) {
-        Map<String, List<Double>> data = new HashMap<>();
-        try {
-            InputStream fis = new FileInputStream(file);
-            DataInputStream dis = new DataInputStream(fis);
-            int size = dis.readInt();
-            List<Double> v = new ArrayList<>(); List<Double> t = new ArrayList<>();
-            for (int i = 0; i < size; i++) {
-                v.add((double)dis.readFloat()); t.add((double)dis.readLong());
-            }
-            data.put("v", v); data.put("t", t);
-            dis.close();
-            fis.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return data;
     }
 
     public interface DownloadListener {

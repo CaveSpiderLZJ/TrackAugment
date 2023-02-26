@@ -162,7 +162,7 @@ public class MotionSensorController {
         ArrayList<List<SensorData>> sensorData = new ArrayList<>(Arrays.asList(
                 mAccData, mAccUnData, mGyroData, mGyroUnData, mMagData, mMagUnData,
                 mLinearAccData, mGravityData, mRotationData));
-        FileUtils.writeIMUDataToFile2(sensorData, mSensorFile);
+        FileUtils.writeIMUDataToFile(sensorData, mSensorFile);
         clearData();
     }
 
