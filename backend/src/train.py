@@ -17,17 +17,14 @@ import config as cf
 import file_utils as fu
 from data_process.record import Record
 from data_process.dataset import Dataset, DataLoader
-from train.model import Model
-from train.feature import feature
+from train.model import *
 
 
 def main():
     # config parameters
-    model = Model()
-    device = torch.device(cf.DEVICE)
-    task_list_id = 'TL13r912je'
-    task_id = 'TKfvdarv6k'
-    subtask_ids = ['ST6klid59e', 'STxw6enkhj', 'STif8yp26z', 'ST6vwaf9d0']
+    model = Model1()
+    task_list_id = 'TLnmdi15b8'
+    task_ids = ['TKbszc8ch6', 'TK7t3ql6jb', 'TK7t3ql6jb', 'TK9fe2fbln', 'TK5rsia9fw', 'TKtvkgst8r', 'TKie8k1h6r']
     n_classes = cf.N_CLASSES
     class_names = cf.CLASS_NAMES
     group_id_to_name = {group_id: group_name for
@@ -43,13 +40,26 @@ def main():
     
     # build the dataset and dataloader
     dataset = Dataset(group_id_to_name, split_mode='train', train_ratio=0.75)
-    for group_id in tqdm.trange(4):
-        subtask_id = subtask_ids[group_id]
-        record_paths = glob(f'{fu.get_subtask_path(task_list_id, task_id, subtask_id)}/RD*')
+    # insert Shake, DoubleShake, Flip and DoubleFlip
+    for task_id, group_id in (('TK9fe2fbln', 3), ('TK5rsia9fw', 4), ('TKtvkgst8r', 5), ('TKie8k1h6r', 6)):
+        record_paths = glob(f'{fu.get_task_path(task_list_id, task_id)}/ST*/RD*')
         records = []
-        for record_path in record_paths[:1]:
+        for record_path in record_paths:
             records.append(Record(record_path))
         dataset.insert_records(records, [group_id] * len(records))
+    # insert Raise and Drop
+    task_id = 'TK7t3ql6jb'
+    group_ids = [1, 2]
+    record_paths = glob(f'{fu.get_task_path(task_list_id, task_id)}/ST*/RD*')
+    for record_path in record_paths:
+        record = Record(record_path)
+        dataset.insert_record_raise_drop(record, group_ids)
+    # insert negetive data
+    task_id = 'TKbszc8ch6'
+    record_paths = glob(f'{fu.get_task_path(task_list_id, task_id)}/ST*/RD*')
+    for record_path in record_paths:
+        record = Record(record_path)
+        dataset.insert_record(record, 0)    
     dataset.shuffle()
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
     dataloader.set_split_mode('train')
@@ -59,7 +69,7 @@ def main():
     os.makedirs(model_save_dir)
     if os.path.exists(log_save_dir): shutil.rmtree(log_save_dir)
     os.makedirs(log_save_dir)
-    model = model.to(device)
+    model = model.to(cf.DEVICE)
     logger = SummaryWriter(log_save_dir)
     train_criterion = nn.CrossEntropyLoss()
     test_criterion = nn.CrossEntropyLoss()
@@ -81,9 +91,8 @@ def main():
         gc.collect()
         train_loss = 0.0
         for i, batch in enumerate(dataloader):
-            device = next(model.parameters()).device
             data: torch.Tensor = batch['data']
-            label: torch.Tensor = batch['label']
+            label: torch.Tensor = batch['label'].to(cf.DEVICE)
             output: torch.Tensor = model(data.transpose(1,2))
             loss: torch.Tensor = train_criterion(output, label)
             loss.backward()
@@ -106,9 +115,8 @@ def main():
             test_loss = 0.0
             with torch.no_grad():
                 for i, batch in enumerate(dataloader):
-                    device = next(model.parameters()).device
-                    data: torch.Tensor = batch['data'].to(device)
-                    label: torch.Tensor = batch['label'].to(device)
+                    data: torch.Tensor = batch['data']
+                    label: torch.Tensor = batch['label'].to(cf.DEVICE)
                     output: torch.Tensor = model(data.transpose(1,2))
                     test_loss += test_criterion(output, label).item()
                     _, predicted = torch.max(output, dim=1)
@@ -142,4 +150,3 @@ if __name__ == '__main__':
     torch.manual_seed(cf.RAND_SEED)
     fu.check_cwd()
     main()
-            

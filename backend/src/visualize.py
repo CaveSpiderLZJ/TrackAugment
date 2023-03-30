@@ -79,23 +79,19 @@ def output_track_video(record:Record, save_path:str, start_frame:int, end_frame:
 def visualize_track_to_imu(record:Record) -> None:
     # prepare imu data
     imu_data = record.imu_data
-    start_imu, end_imu = 0, 5000
+    start_imu, end_imu = 0, 6000
     acc = imu_data['acc']
     acc = np.column_stack([acc[axis] for axis in ('x','y','z')])[start_imu:end_imu,:]
-    # acc = aug.down_sample_by_step(acc, axis=0, step=5)
     gyro = imu_data['gyro']
     gyro = np.column_stack([gyro[axis] for axis in ('x','y','z')])[start_imu:end_imu,:]
-    # gyro = aug.down_sample_by_step(gyro, axis=0, step=5)
     # prepare track data
     track_data = record.track_data
-    start_track, end_track = 0, 5000
+    start_track, end_track = 0, 6000
     center_pos = track_data['center_pos'][start_track:end_track,:]
     marker_pos = track_data['marker_pos'][:,start_track:end_track,:]
     axes = aug.calc_local_axes(marker_pos)
     generated_acc = aug.track_to_acc(center_pos, axes, cf.FS_PREPROCESS)
-    # generated_acc = aug.down_sample_by_step(generated_acc, axis=0, step=2)
     generated_gyro = aug.track_to_gyro(axes, cf.FS_PREPROCESS)
-    # generated_gyro = aug.down_sample_by_step(generated_gyro, axis=0, step=2)
     # MSE error
     mse_acc = aug.mse_error(acc, generated_acc)
     mse_gyro = aug.mse_error(gyro, generated_gyro)
@@ -145,7 +141,7 @@ def visualize_markers(record:Record) -> None:
     plt.show()
     
 
-def visualize_track(record:Record) -> None:
+def visualize_3d_track(record:Record) -> None:
     '''
     '''
     # prepare imu data
@@ -407,17 +403,28 @@ def visualize_filter(record:Record):
         plt.plot(filtered[:,i])
     plt.show()
     
+    
+def visualize_track_data(record):
+    track_data = record.track_data
+    center_pos = track_data['center_pos']
+    print(center_pos.shape)
+    for i in range(3):
+        plt.plot(center_pos[:,i])
+    plt.show()
+    
+    
+def visualize_error():
+    pass
+    
+    
 
 if __name__ == '__main__':
     fu.check_cwd()
-    task_list_id = 'TL13r912je'
-    task_id = 'TKfvdarv6k'
-    # Shake
-    # subtask_id = 'ST6klid59e'
-    # record_id = 'RDmb2zdzis'
-    # DoubleShake
-    subtask_id = 'STxw6enkhj'
-    record_id = 'RD6fu3gmp6'
+    # lzj_RaiseDrop_StandUp
+    task_list_id = 'TLnmdi15b8'
+    task_id = 'TK7t3ql6jb'
+    subtask_id = 'STwrz1nu4p'
+    record_id = 'RDhfhc5syr'
     record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
     tic = time.perf_counter()
     record = Record(record_path)
@@ -425,11 +432,13 @@ if __name__ == '__main__':
     print(f'time: {(toc-tic)*1000:.3f} ms')
      
     # output_track_video(record, 'track.mp4', 1934, 22934)
-    # visualize_track_to_imu(record)
+    visualize_track_to_imu(record)
     # visualize_markers(record)
-    # visualize_track(record)
+    # visualize_3d_track(record)
     # visualize_imu_to_track(record)
     # augment_track(record)
     # augment_imu(record)
     # visualize_cutter(record)
-    visualize_filter(record)
+    # visualize_filter(record)
+    
+    

@@ -23,6 +23,7 @@ class Dataset(torch.utils.data.Dataset):
             train_ratio: float, the ratio of training set, default = 0.8.
         '''
         self.size = 0
+        self.positive_size = 0
         self.group_id_to_name = group_id_to_name
         self.split_mode = split_mode
         self.train_ratio = train_ratio
@@ -48,6 +49,7 @@ class Dataset(torch.utils.data.Dataset):
         train_size = int(self.size * self.train_ratio)
         if self.split_mode != 'train': idx += train_size
         if self.reindex_map is not None: idx = self.reindex_map[idx]
+        # TODO: no track data used yet
         sample = np.concatenate([self.imu_data['acc'][idx,:,:], self.imu_data['gyro'][idx,:,:]], axis=1)
         sample = aug.down_sample_by_step(sample, axis=0, step=(cf.FS_PREPROCESS//cf.FS_TRAIN))
         return {'data': sample, 'label': self.labels[idx]}
@@ -66,11 +68,49 @@ class Dataset(torch.utils.data.Dataset):
     
     
     def insert_record(self, record:Record, group_id:int) -> None:
-        ''' Insert a single record.
+        ''' Insert a single record with all samples have the same group id.
+            NOTE: always insert negative (group_id == 0) after positive data (group_id != 0).
         args:
             record: Record, the action record.
             group_id: int, the group id of the record.
         '''
+        # insert imu data
+        imu_data = self.imu_data
+        cutted_imu_data = record.cutted_imu_data
+        cnt = cutted_imu_data['acc'].shape[0]
+        if imu_data['acc'] is None:
+            for key in ('acc', 'gyro'):
+                imu_data[key] = cutted_imu_data[key]
+        else:
+            for key in ('acc', 'gyro'):
+                imu_data[key] = np.concatenate([imu_data[key], cutted_imu_data[key]], axis=0)
+        self.imu_data = imu_data
+        # insert track data
+        if group_id != 0:
+            track_data = self.track_data
+            cutted_track_data = record.cutted_track_data
+            if track_data['center_pos'] is None:
+                for key in ('center_pos', 'center_rot', 'marker_pos'):
+                    track_data[key] = cutted_track_data[key]
+            else:
+                for key in ('center_pos', 'center_rot', 'marker_pos'):
+                    track_data[key] = np.concatenate([track_data[key], cutted_track_data[key]], axis=0)
+            self.track_data = track_data
+            self.positive_size += cnt
+        # insert labels
+        if self.labels is None:
+            self.labels = np.zeros(cnt, dtype=np.int64) + group_id
+        else: self.labels = np.concatenate([self.labels, np.zeros(cnt, dtype=np.int64) + group_id])
+        self.size += cnt
+        
+        
+    def insert_record_raise_drop(self, record:Record, group_ids:Tuple[int]) -> None:
+        ''' An adapter for insert raise and drop data only.
+        args:
+            record: Record, the action record.
+            group_ids: Tuple[int], len == 2, the group ids of raise and drop.
+        '''
+        assert len(group_ids) == 2
         # insert imu data
         imu_data = self.imu_data
         cutted_imu_data = record.cutted_imu_data
@@ -92,16 +132,16 @@ class Dataset(torch.utils.data.Dataset):
             for key in ('center_pos', 'center_rot', 'marker_pos'):
                 track_data[key] = np.concatenate([track_data[key], cutted_track_data[key]], axis=0)
         self.track_data = track_data
-        # insert labels
         if self.labels is None:
-            self.labels = np.zeros(cnt, dtype=np.int64) + group_id
-        else: self.labels = np.concatenate([self.labels, np.zeros(cnt, dtype=np.int32) + group_id])
+            self.labels = np.tile(group_ids, cnt//2+1)[:cnt]
+        else: self.labels = np.concatenate([self.labels, np.tile(group_ids, cnt//2+1)[:cnt]])
+        self.positive_size += cnt
         self.size += cnt
         
         
     def shuffle(self) -> None:
         ''' Shuffle the reindex mapping.
-            NOTE: always call shuffle after inserting records, or never call shuffle.
+            NOTE: always call shuffle after inserting records.
         '''
         self.reindex_map = np.arange(self.size, dtype=np.int32)
         np.random.shuffle(self.reindex_map)

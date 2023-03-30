@@ -4,6 +4,7 @@ import time
 import struct
 import numpy as np
 import pandas as pd
+from scipy import interpolate as interp
 from typing import Tuple, List, Dict
 from matplotlib import pyplot as plt
 
@@ -30,12 +31,13 @@ class Record:
                     self.motion_path = os.path.join(record_path, file_name)
                 elif file_name.startswith('Timestamp'):
                     self.timestamp_path = os.path.join(record_path, file_name)
-                elif file_name == 'track.csv':
+                elif file_name.endswith('.csv'):
                     self.track_path = os.path.join(record_path, file_name)
         self.load_track_data()
         self.load_imu_data()
         self.align_imu_data_frequency()
-        self.align_track_and_imu_data()
+        if self.track_path is not None:
+            self.align_track_and_imu_data()
         self.cut_data()
         
         
@@ -50,7 +52,7 @@ class Record:
         center_pos[np.isnan(center_pos)] = 0.0
         center_rot = [track_data[('SmartPhone', 'Rotation', axis)].to_numpy(
             np.float32) for axis in ('X', 'Y', 'Z', 'W')]
-        center_rot = 1e-3 * np.column_stack(center_rot) # mm -> m
+        center_rot = np.column_stack(center_rot)
         center_rot[np.isnan(center_rot)] = 1.0
         marker_pos = []
         for i in range(1,7):
@@ -58,9 +60,32 @@ class Record:
                 np.float32) for axis in ('X', 'Y', 'Z')]
             marker_pos.append(np.column_stack(pos)[np.newaxis,:,:])
         marker_pos = 1e-3 * np.concatenate(marker_pos, axis=0) # mm -> m
+        # reset the marker ids
+        nan_mask = np.isnan(marker_pos)
+        nan_mask = nan_mask[:,:,0] | nan_mask[:,:,1] | nan_mask[:,:,2]
+        nan_mask = nan_mask[0,:] | nan_mask[1,:] | nan_mask[2,:] | nan_mask[3,:] | nan_mask[4,:] | nan_mask[5,:]
+        valid = marker_pos[:,~nan_mask,:][:,:1000,:]
+        indices = [0] * 6
+        for i in range(6):
+            diff = valid - valid[i:i+1,:,:]
+            diff = np.sqrt(np.sum(np.square(diff), axis=2))
+            diff = np.sort(np.mean(diff, axis=1))[1:]
+            idx = np.argmin(np.sum(np.abs(cf.MARKER_DIS-diff[None,:]), axis=1))
+            indices[idx] = i
+        marker_pos = marker_pos[tuple(indices),:,:]
         marker_pos[np.isnan(marker_pos)] = 0.0
-        self.track_data = {'timestamps': timestamps, 'center_pos': center_pos,
-            'center_rot': center_rot, 'marker_pos': marker_pos}
+        # interpolation
+        nan_mask = (center_pos[:,0] == 0.0) | (center_pos[:,1] == 0.0) | (center_pos[:,2] == 0.0)
+        valid_mask = ~nan_mask
+        self.valid_mask = valid_mask
+        f_center_pos = interp.interp1d(timestamps[valid_mask], center_pos[valid_mask,:],
+            kind='cubic', axis=0, fill_value=0.0, bounds_error=False)
+        f_center_rot = interp.interp1d(timestamps[valid_mask], center_rot[valid_mask,:],
+            kind='cubic', axis=0, fill_value=1.0, bounds_error=False)
+        f_marker_pos = interp.interp1d(timestamps[valid_mask], marker_pos[:,valid_mask,:],
+            kind='cubic', axis=1, fill_value=0.0, bounds_error=False)
+        self.track_data = {'timestamps': timestamps, 'center_pos': f_center_pos(timestamps),
+            'center_rot': f_center_rot(timestamps), 'marker_pos': f_marker_pos(timestamps)}
         
     
     def load_imu_data(self):
@@ -147,6 +172,21 @@ class Record:
         for i in range(max(0, off-step), min(len_track-len_gyro, off+10)):
             err = np.mean(np.abs(generated_gyro[i:i+length] - gyro[:length]))
             if err < min_err: min_err, off = err, i
+        # interpolation
+        # timestamps = timestamps[off:off+len_gyro]
+        # center_pos = center_pos[off:off+len_gyro,:]
+        # center_rot = center_rot[off:off+len_gyro,:]
+        # marker_pos = marker_pos[:,off:off+len_gyro,:]
+        # nan_mask = (center_pos[:,0] == 0.0) & (center_pos[:,1] == 0.0) & (center_pos[:,2] == 0.0)
+        # valid_mask = ~nan_mask
+        # if (valid_ratio:=(np.sum(valid_mask)/len(nan_mask))) < 0.95:
+        #     print(f'WARNING: low valid ratio ({valid_ratio:.3f}) in {self.record_path}')
+        # f_center_pos = interp.interp1d(timestamps[valid_mask], center_pos[valid_mask,:],
+        #     kind='cubic', axis=0, fill_value='extrapolate')
+        # f_center_rot = interp.interp1d(timestamps[valid_mask], center_rot[valid_mask,:],
+        #     kind='cubic', axis=0, fill_value='extrapolate')
+        # f_marker_pos = interp.interp1d(timestamps[valid_mask], marker_pos[:,valid_mask,:],
+        #     kind='cubic', axis=1, fill_value='extrapolate')
         self.track_data = {'timestamps': timestamps[off:off+len_gyro], 'center_pos': center_pos[off:off+len_gyro,:],
             'center_rot': center_rot[off:off+len_gyro,:], 'marker_pos': marker_pos[:,off:off+len_gyro,:]}
         
@@ -162,16 +202,18 @@ class Record:
         cutter = PeakCutter(cf.N_SAMPLE, window_length, noise=0,
             fs=cf.FS_PREPROCESS, fs_stop=0.005*cf.FS_PREPROCESS)
         # discard the first sample
-        cut_ranges = cutter.cut_range(gyro)[1:]
+        cut_ranges = cutter.cut_range(gyro)
         # cut track and imu data
         acc = np.column_stack([imu_data['acc'][axis] for axis in ('x','y','z')])
         self.cutted_imu_data = {
             'acc': np.row_stack([acc[None,l:r,:] for l, r in cut_ranges]),
             'gyro': np.row_stack([gyro[None,l:r,:] for l, r in cut_ranges])}
-        self.cutted_track_data = {
-            'center_pos': np.row_stack([track_data['center_pos'][None,l:r,:] for l, r in cut_ranges]),
-            'center_rot': np.row_stack([track_data['center_rot'][None,l:r,:] for l, r in cut_ranges]),
-            'marker_pos': np.row_stack([track_data['marker_pos'][None,:,l:r,:] for l, r in cut_ranges])}
+        if self.track_path is not None:
+            self.cutted_track_data = {
+                'center_pos': np.row_stack([track_data['center_pos'][None,l:r,:] for l, r in cut_ranges]),
+                'center_rot': np.row_stack([track_data['center_rot'][None,l:r,:] for l, r in cut_ranges]),
+                'marker_pos': np.row_stack([track_data['marker_pos'][None,:,l:r,:] for l, r in cut_ranges])}
+        else: self.cutted_track_data = None
 
 
 if __name__ == '__main__':

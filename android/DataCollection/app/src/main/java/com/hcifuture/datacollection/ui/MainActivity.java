@@ -49,7 +49,6 @@ public class MainActivity extends AppCompatActivity {
     private Button mBtnStart;
     private Button mBtnCancel;
     private Button mBtnConfig;
-    private Button mBtnAccess;
 
     // task
     private RootListBean mRootList;  // queried from the backend
@@ -108,15 +107,14 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // jump to accessibility settings
-        mBtnAccess = findViewById(R.id.btn_access);
-        mBtnAccess.setOnClickListener((v) -> {
-            Intent settingIntent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
-            startActivity(settingIntent);
-        });
+        // find views
+        mUserText = findViewById(R.id.user_text);
+
 
         mInferencer = Inferencer.getInstance();
         mInferencer.start(this);
+
+        mUserText = findViewById(R.id.user_text);
     }
 
     private void loadRootListViaNetwork() {
@@ -132,6 +130,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        mUserText.clearFocus();
         loadRootListViaNetwork();
     }
 
@@ -163,9 +162,6 @@ public class MainActivity extends AppCompatActivity {
      * Called in loadRootListViaNetwork().
      */
     private void initView() {
-        // user text
-        mUserText = findViewById(R.id.user_text);
-        mUserText.setText(R.string.default_user);
 
         // init views
         mTaskDescription = findViewById(R.id.task_description);
@@ -253,7 +249,6 @@ public class MainActivity extends AppCompatActivity {
         mBtnStart = findViewById(R.id.btn_start);
         mBtnCancel = findViewById(R.id.btn_cancel);
         mBtnConfig = findViewById(R.id.btn_config);
-        mBtnAccess = findViewById(R.id.btn_access);
 
         // click the start button to start recorder
         mBtnStart.setOnClickListener(view -> {
@@ -279,12 +274,6 @@ public class MainActivity extends AppCompatActivity {
         mBtnConfig.setOnClickListener(view -> {
             Intent intent = new Intent(MainActivity.this, ConfigTaskListActivity.class);
             startActivity(intent);
-        });
-
-        // jump to accessibility settings
-        mBtnAccess.setOnClickListener((v) -> {
-            Intent settingIntent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
-            startActivity(settingIntent);
         });
 
         // set the default status of the start and end buttons

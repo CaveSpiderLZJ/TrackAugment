@@ -8,7 +8,7 @@ import config as cf
 
 
 DEFAULT_TASK_LIST_ID = "TL13r912je"
-DEFAULT_ROOT = os.path.join("..", "assets", "default")
+DEFAULT_ROOT = os.path.join("..", "assets")
 DATA_ROOT = os.path.join("..", "data")
 DATA_RECORD_ROOT = os.path.join(DATA_ROOT, "record")
 DATA_TRAIN_ROOT = os.path.join(DATA_ROOT, "train")
@@ -95,7 +95,7 @@ def load_json(path):
         return json.load(fin)
     
 
-def load_root_list_info() -> List:
+def load_root_list_info() -> Dict:
     root_list_path = get_root_list_info_path()
     if not os.path.exists(root_list_path): return []
     with open(root_list_path, 'r') as f:
@@ -215,13 +215,8 @@ def get_md5(filename):
 
 def create_default_files():
     mkdir(DATA_RECORD_ROOT)
-    mkdir(DATA_TRAIN_ROOT)
-    mkdir(DATA_FILE_ROOT)
-    mkdir(DATA_DEX_ROOT)
-    mkdir(DATA_TEMP_ROOT)
-    shutil.copyfile(os.path.join(DEFAULT_ROOT, "config.json"), os.path.join(DATA_FILE_ROOT, "config.json"))
-    default_task_list_src = os.path.join(DEFAULT_ROOT, DEFAULT_TASK_LIST_ID)
-    default_task_list_dst = os.path.join(DATA_RECORD_ROOT, DEFAULT_TASK_LIST_ID)
+    default_task_list_src = os.path.join(DEFAULT_ROOT, 'record')
+    default_task_list_dst = DATA_RECORD_ROOT
     if os.path.exists(default_task_list_src) and not os.path.exists(default_task_list_dst):
         shutil.copytree(default_task_list_src, default_task_list_dst)
     
@@ -235,5 +230,5 @@ def check_cwd():
         
 
 if __name__ == '__main__':
-    root_list = load_root_list()
+    root_list = load_root_list_info()
     print(root_list)
