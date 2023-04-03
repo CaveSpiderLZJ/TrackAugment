@@ -4,6 +4,7 @@ import time
 import tqdm
 import numpy as np
 import pandas as pd
+from glob import glob
 from mpl_toolkits import mplot3d
 from matplotlib import pyplot as plt
 from matplotlib import gridspec as gs
@@ -17,6 +18,7 @@ from data_process.record import Record
 from data_process import augment as aug
 from data_process.cutter import PeakCutter
 from data_process.filter import Butterworth
+from data_process.dataset import Dataset
 
 
 def output_track_video(record:Record, save_path:str, start_frame:int, end_frame:int) -> None:
@@ -81,9 +83,7 @@ def visualize_track_to_imu(record:Record) -> None:
     imu_data = record.imu_data
     start_imu, end_imu = 0, 6000
     acc = imu_data['acc']
-    acc = np.column_stack([acc[axis] for axis in ('x','y','z')])[start_imu:end_imu,:]
     gyro = imu_data['gyro']
-    gyro = np.column_stack([gyro[axis] for axis in ('x','y','z')])[start_imu:end_imu,:]
     # prepare track data
     track_data = record.track_data
     start_track, end_track = 0, 6000
@@ -147,15 +147,13 @@ def visualize_3d_track(record:Record) -> None:
     # prepare imu data
     imu_data = record.imu_data
     start_imu, end_imu = 3000, 3500
-    acc = imu_data['acc']
-    acc = np.column_stack([acc[axis] for axis in ('x', 'y', 'z')])[start_imu:end_imu,:]
+    acc = imu_data['acc'][start_imu:end_imu,:]
     acc = aug.down_sample_by_step(acc, axis=0, step=5)
     augmented_acc = aug.jitter(acc, std=1)
     # augmented_acc = aug.scale(acc, 0.05)
     augmented_acc = aug.time_warp(acc, axis=0, n_knots=4, std=0.05)
     # augmented_acc = aug.magnitude_warp(acc, axis=0, n_knots=4, std=0.1, preserve_bound=True)
-    gyro = imu_data['gyro']
-    gyro = np.column_stack([gyro[axis] for axis in ('x','y','z')])[start_imu:end_imu,:]
+    gyro = imu_data['gyro'][start_imu:end_imu,:]
     gyro = aug.down_sample_by_step(gyro, axis=0, step=5)
     # prepare track data
     track_data = record.track_data
@@ -198,9 +196,7 @@ def visualize_imu_to_track(record:Record):
     track_data = record.track_data
     start_imu, end_imu = 3000, 3500
     start_track, end_track = 3134, 3334
-    acc, gyro = imu_data['acc'], imu_data['gyro']
-    acc = np.column_stack([acc[axis] for axis in ('x','y','z')])[start_imu:end_imu,:]
-    gyro = np.column_stack([gyro[axis] for axis in ('x','y','z')])[start_imu:end_imu,:]
+    acc, gyro = imu_data['acc'][start_imu:end_imu,:], imu_data['gyro'][start_imu:end_imu,:]
     center_pos = track_data['center_pos'][start_track:end_track,:]
     marker_pos = track_data['marker_pos'][:,start_track:end_track,:]
     axes = aug.calc_local_axes(marker_pos)
@@ -251,10 +247,8 @@ def augment_track(record:Record):
     # prepare imu data
     imu_data = record.imu_data
     start_imu, end_imu = 2500, 5000
-    acc = imu_data['acc']
-    acc = np.column_stack([acc[axis] for axis in ('x','y','z')])[start_imu:end_imu,:]
-    gyro = imu_data['gyro']
-    gyro = np.column_stack([gyro[axis] for axis in ('x','y','z')])[start_imu:end_imu,:]
+    acc = imu_data['acc'][start_imu:end_imu,:]
+    gyro = imu_data['gyro'][start_imu:end_imu,:]
     # prepare track data
     track_data = record.track_data
     start_track, end_track = 2934, 3934
@@ -315,10 +309,8 @@ def augment_imu(record:Record):
     # prepare imu data
     imu_data = record.imu_data
     start_imu, end_imu = 3000, 3500
-    acc = imu_data['acc']
-    acc = np.column_stack([acc[axis] for axis in ('x','y','z')])[start_imu:end_imu,:]
-    gyro = imu_data['gyro']
-    gyro = np.column_stack([gyro[axis] for axis in ('x','y','z')])[start_imu:end_imu,:]
+    acc = imu_data['acc'][start_imu:end_imu,:]
+    gyro = imu_data['gyro'][start_imu:end_imu,:]
     # prepare track data
     track_data = record.track_data
     start_track, end_track = 3134, 3334
@@ -391,17 +383,17 @@ def visualize_cutter(record:Record):
     
     
 def visualize_filter(record:Record):
-    data = record.cutted_imu_data['acc'][1,...]
-    data = aug.down_sample_by_step(data, axis=0, step=2)
-    butterworth = Butterworth(fs=100, cut=32, mode='highpass')
-    filtered = butterworth.filt(data, axis=0)
-    plt.subplot(2, 1, 1)
+    gyro = record.imu_data['gyro']
+    norm = np.sqrt(np.sum(np.square(gyro), axis=1))
+    butter = Butterworth(cf.FS_PREPROCESS, 0.003*cf.FS_PREPROCESS, 'lowpass', order=4)
+    filtered_norm = butter.filt(norm)
     for i in range(3):
-        plt.plot(data[:,i])
-    plt.subplot(2, 1, 2)
-    for i in range(3):
-        plt.plot(filtered[:,i])
+        plt.plot(gyro[:,i])
+    plt.plot(filtered_norm, color='red')
+    for i in range(21):
+        plt.plot([i*600, i*600], [-10, 10], color='black')
     plt.show()
+    
     
     
 def visualize_track_data(record):
@@ -414,31 +406,102 @@ def visualize_track_data(record):
     
     
 def visualize_error():
-    pass
+    task_list_id = 'TLnmdi15b8'
+    task_ids = ['TK7t3ql6jb', 'TK9fe2fbln', 'TK5rsia9fw', 'TKtvkgst8r', 'TKie8k1h6r']
+    root_list = fu.load_root_list_info()
+    task_lists = root_list['tasklists']
+    for task_list in task_lists:
+        if task_list['id'] == task_list_id: break
+    assert task_list['id'] == task_list_id
+    W = 600
+    acc_stds = []
+    gyro_stds = []
+    for task_id in task_ids:
+        for task in task_list['tasks']:
+            if task['id'] == task_id: break
+        assert task['id'] == task_id
+        for subtask in task['subtasks']:
+            subtask_id = subtask['id']
+            n_sample = subtask['times']
+            record_paths = glob(f'{fu.DATA_RECORD_ROOT}/{task_list_id}/{task_id}/{subtask_id}/RD*')
+            for record_path in tqdm.tqdm(record_paths):
+                record = Record(record_path, n_sample)
+                imu_data = record.imu_data
+                acc = imu_data['acc']
+                gyro = imu_data['gyro']
+                track_data = record.track_data
+                center_pos = track_data['center_pos']
+                marker_pos = track_data['marker_pos']
+                axes = aug.calc_local_axes(marker_pos)
+                generated_acc = aug.track_to_acc(center_pos, axes, cf.FS_PREPROCESS)
+                generated_gyro = aug.track_to_gyro(axes, cf.FS_PREPROCESS)
+                for i in range(int(np.round(gyro.shape[0]//W))):
+                    # acc_std = np.std(acc[i*W:(i+1)*W,:])
+                    # acc_error = aug.mse_error(acc[i*W:(i+1)*W,:], generated_acc[i*W:(i+1)*W,:])
+                    acc_std = np.std(acc[i*W:(i+1)*W,:])
+                    acc_stds.append(acc_std)
+                    # gyro_error = aug.mse_error(gyro[i*W:(i+1)*W,:], generated_gyro[i*W:(i+1)*W,:])
+                    gyro_std = np.std(gyro[i*W:(i+1)*W,:])
+                    gyro_stds.append(gyro_std)
+    acc_stds = np.sort(acc_stds)
+    gyro_stds = np.sort(gyro_stds)
+    plt.subplot(2, 1, 1)
+    plt.plot(acc_stds)
+    plt.subplot(2, 1, 2)
+    plt.plot(gyro_stds)
+    plt.show()
     
+    
+def visualize_clean_mask():
+    clean_mask = np.zeros(0, dtype=np.bool8)
+    task_list_id = 'TLnmdi15b8'
+    task_ids = ['TK7t3ql6jb', 'TK9fe2fbln', 'TK5rsia9fw', 'TKtvkgst8r', 'TKie8k1h6r']
+    root_list = fu.load_root_list_info()
+    task_lists = root_list['tasklists']
+    for task_list in task_lists:
+        if task_list['id'] == task_list_id: break
+    assert task_list['id'] == task_list_id
+    for task_id in task_ids:
+        for task in task_list['tasks']:
+            if task['id'] == task_id: break
+        assert task['id'] == task_id
+        for subtask in task['subtasks']:
+            subtask_id = subtask['id']
+            n_sample = subtask['times']
+            record_paths = glob(f'{fu.DATA_RECORD_ROOT}/{task_list_id}/{task_id}/{subtask_id}/RD*')
+            for record_path in tqdm.tqdm(record_paths):
+                record = Record(record_path, n_sample)
+                clean_mask = np.concatenate([clean_mask, record.clean_mask])
+    W = int(np.sqrt(len(clean_mask))) + 1
+    img = np.zeros((W, W, 3), dtype=np.uint8)
+    for k in range(len(clean_mask)):
+        i, j = k // W, k % W
+        if clean_mask[k]:
+            img[i,j,:] = 0, 255, 0
+        else: img[i,j,:] = 0, 0, 255
+    img = cv2.resize(img, (W*4, W*4))
+    cv2.imshow('img', img)
+    cv2.waitKey()
+    cv2.destroyAllWindows()
     
 
 if __name__ == '__main__':
+    np.random.seed(0)
     fu.check_cwd()
-    # lzj_RaiseDrop_StandUp
     task_list_id = 'TLnmdi15b8'
-    task_id = 'TK7t3ql6jb'
-    subtask_id = 'STwrz1nu4p'
-    record_id = 'RDhfhc5syr'
+    task_id = 'TK7t3ql6jb'  # RD
+    subtask_id = 'STyrpwqe0o' # SF
+    record_id = 'RD0kkvx4dy'
     record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
     tic = time.perf_counter()
-    record = Record(record_path)
+    record = Record(record_path, n_sample=20)
     toc = time.perf_counter()
     print(f'time: {(toc-tic)*1000:.3f} ms')
-     
-    # output_track_video(record, 'track.mp4', 1934, 22934)
-    visualize_track_to_imu(record)
-    # visualize_markers(record)
-    # visualize_3d_track(record)
-    # visualize_imu_to_track(record)
-    # augment_track(record)
-    # augment_imu(record)
-    # visualize_cutter(record)
-    # visualize_filter(record)
     
+    dataset = Dataset()
+    dataset.insert_record_raise_drop(record, 1, 2)
+    
+    # visualize_filter(record)
+    # visualize_error()
+    # visualize_clean_mask()
     

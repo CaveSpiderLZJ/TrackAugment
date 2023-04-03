@@ -99,11 +99,10 @@ def check_record_signal():
     subtask_id = 'STl3yde7qb'
     record_id = 'RDqq4s24ot'
     record_path = fu.get_record_path(TASK_LIST_ID, task_id, subtask_id, record_id)
-    record = Record(record_path)
+    record = Record(record_path, n_sample=20)
     imu_data = record.imu_data
     track_data = record.track_data
     gyro = imu_data['gyro']
-    gyro = np.column_stack([gyro[axis] for axis in ('x','y','z')])
     center_pos = track_data['center_pos']
     center_rot = track_data['center_rot']
     marker_pos = track_data['marker_pos']

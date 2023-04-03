@@ -50,9 +50,7 @@ def get_task_path(task_list_id:str, task_id:str):
 def get_subtask_path(task_list_id:str, task_id:str, subtask_id:str):
     return os.path.join(get_task_path(task_list_id, task_id), subtask_id)
 
-def get_record_list_path(task_list_id:str, task_id:str, subtask_id:str, dataset_version='0.2'):
-    if dataset_version == '0.1':
-        return os.path.join(get_subtask_path(task_list_id, task_id, subtask_id), 'recordlist.txt')
+def get_record_list_path(task_list_id:str, task_id:str, subtask_id:str):
     return os.path.join(get_subtask_path(task_list_id, task_id, subtask_id), 'recordlist.json')
 
 def get_record_path(task_list_id:str, task_id:str, subtask_id:str, record_id:str):
@@ -118,26 +116,11 @@ def load_task_list_info(task_list_id):
         return json.load(f)
 
 
-def load_record_list(task_list_id, task_id, subtask_id, dataset_version):
-    record_list_path = get_record_list_path(task_list_id, task_id, subtask_id, dataset_version)
-    if not os.path.exists(record_list_path):
-        return []
-
-    record_list = []
-    if dataset_version == '0.1':
-        with open(record_list_path, 'r') as f:
-            lines = f.readlines()
-            for line in lines:
-                record_id = line.strip()
-                if record_id.startswith('RD') and record_id not in record_list:
-                    record_list.append(record_id)
-    else:
-        with open(record_list_path, 'r') as fin:
-            records = json.load(fin)
-            for record in records:
-                record_list.append(record['record_id'])
-        
-    return record_list
+def load_record_list(task_list_id, task_id, subtask_id):
+    record_list_path = get_record_list_path(task_list_id, task_id, subtask_id)
+    if os.path.exists(record_list_path):
+        return json.load(open(record_list_path, 'r'))
+    return []
 
 
 def append_record_list(task_list_id, task_id, subtask_id, user_name, record_id, dataset_version='0.2'):
@@ -165,19 +148,6 @@ def save_record_file(file, file_path):
     f = open(file_path, 'wb')
     file.save(f)
     f.close()
-    '''
-    try:
-        record_path = "/".join(file_path.split('/')[:-1])
-        file_suffix = "_".join((file_path.split('/')[-1]).split('_')[1:])
-        if file_suffix.endswith('json'):
-            sensor_path = os.path.join(record_path, "Sensor_" + file_suffix)
-            timestamp_path = os.path.join(record_path, "Timestamp_" + file_suffix)
-            if os.path.exists(sensor_path) and os.path.exists(timestamp_path):
-                Record(sensor_path, timestamp_path, do_cut=False)
-
-    except:
-        pass
-    '''
 
 def save_file(file, file_path):
     file.save(file_path)

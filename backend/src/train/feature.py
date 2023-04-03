@@ -50,7 +50,7 @@ if __name__ == '__main__':
     subtask_id = 'STxw6enkhj'
     record_id = 'RD6fu3gmp6'
     record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
-    record = Record(record_path)
+    record = Record(record_path, n_sample=21)
     imu = record.cutted_imu_data
     imu = np.concatenate([imu['acc'], imu['gyro']], axis=2)
     imu = imu.transpose(0,2,1)
