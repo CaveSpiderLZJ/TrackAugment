@@ -13,19 +13,14 @@ from data_process.record import Record
 class Dataset(torch.utils.data.Dataset):
     
     
-    def __init__(self, group_id_to_name:Dict[int, str],
-            split_mode:str='train', train_ratio:float=0.8) -> None:
+    def __init__(self, negative_label:int) -> None:
         ''' Init the dataset data structures.
         args:
-            group_id_to_name: Dict[int, str], the mapping of group ids to group names.
-                If there are N groups in total, the group ids must be [0, ..., N-1]
-            split_mode: str, in {'train', 'test'}, defualt = 'train'.
-            train_ratio: float, the ratio of training set, default = 0.8.
+            negative_label: int, the negative label.
         '''
+        self.negative_label = negative_label
         self.size = 0
-        self.group_id_to_name = group_id_to_name
-        self.split_mode = split_mode
-        self.train_ratio = train_ratio
+        self.positive_size = 0
         self.track_data = {'center_pos': None, 'center_rot': None, 'marker_pos': None}
         self.imu_data = {'acc': None, 'gyro': None}
         self.labels = None
@@ -33,9 +28,7 @@ class Dataset(torch.utils.data.Dataset):
             
 
     def __len__(self) -> int:
-        if self.split_mode == 'train':
-            return int(self.size * self.train_ratio)
-        return self.size - int(self.size * self.train_ratio) 
+        return self.size
     
     
     def __getitem__(self, idx:int) -> Dict[str, np.ndarray]:
@@ -44,75 +37,124 @@ class Dataset(torch.utils.data.Dataset):
             idx: int, the index of the action sample.
                 the idx will be reindexed before retrieving the actual sample data.]
         '''
-        # no track augmentation yet, directly return imu data
-        train_size = int(self.size * self.train_ratio)
-        if self.split_mode != 'train': idx += train_size
+        # TODO: no track augmentation yet, directly return imu data
+        # If idx after reindex_map >= positive size, it means the sample at idx is negative data,
+        # which does not has track_data. Return imu data directly.
         if self.reindex_map is not None: idx = self.reindex_map[idx]
         sample = np.concatenate([self.imu_data['acc'][idx,:,:], self.imu_data['gyro'][idx,:,:]], axis=1)
         sample = aug.down_sample_by_step(sample, axis=0, step=(cf.FS_PREPROCESS//cf.FS_TRAIN))
         return {'data': sample, 'label': self.labels[idx]}
     
     
-    def insert_records(self, records:List[Record], group_ids:List[int]) -> None: 
+    def insert_records(self, records:List[Record], labels:List[int]) -> None: 
         ''' Insert a list of records.
         args:
             records: List[Record], a list or records.
-            group_ids: List[int], the group ids of these records,
+            labels: List[int], the labels of these records,
                 must have the same length as records.
         '''
         # a simple version based on insert_record()
-        for record, group_id in zip(records, group_ids):
-            self.insert_record(record, group_id)
+        for record, label in zip(records, labels):
+            self.insert_record(record, label)
     
     
-    def insert_record(self, record:Record, group_id:int) -> None:
-        ''' Insert a single record.
+    def insert_record(self, record:Record, label:int) -> None:
+        ''' Insert a single record with all samples have the same group id.
+            NOTE: always insert negative after positive data.
         args:
             record: Record, the action record.
-            group_id: int, the group id of the record.
+            label: int, the label of the record.
         '''
         # insert imu data
+        clean_mask = record.clean_mask
+        cnt = np.sum(clean_mask)
         imu_data = self.imu_data
         cutted_imu_data = record.cutted_imu_data
-        cnt = cutted_imu_data['acc'].shape[0]
         if imu_data['acc'] is None:
-            for key in ('acc', 'gyro'):
-                imu_data[key] = cutted_imu_data[key]
+            imu_data['acc'] = cutted_imu_data['acc'][clean_mask,...]
+            imu_data['gyro'] = cutted_imu_data['gyro'][clean_mask,...]
         else:
-            for key in ('acc', 'gyro'):
-                imu_data[key] = np.concatenate([imu_data[key], cutted_imu_data[key]], axis=0)
+            imu_data['acc'] = np.concatenate([imu_data['acc'],
+                cutted_imu_data['acc'][clean_mask,...]], axis=0)
+            imu_data['gyro'] = np.concatenate([imu_data['gyro'],
+                cutted_imu_data['gyro'][clean_mask,...]], axis=0)
+        self.imu_data = imu_data
+        # insert track data
+        if label != self.negative_label:
+            track_data = self.track_data
+            cutted_track_data = record.cutted_track_data
+            if track_data['center_pos'] is None:
+                track_data['center_pos'] = cutted_track_data['center_pos'][clean_mask,...]
+                track_data['center_rot'] = cutted_track_data['center_rot'][clean_mask,...]
+                track_data['marker_pos'] = cutted_track_data['marker_pos'][clean_mask,...]    
+            else:
+                track_data['center_pos'] = np.concatenate([track_data['center_pos'],
+                    cutted_track_data['center_pos'][clean_mask,...]], axis=0)
+                track_data['center_rot'] = np.concatenate([track_data['center_rot'],
+                    cutted_track_data['center_rot'][clean_mask,...]], axis=0)
+                track_data['marker_pos'] = np.concatenate([track_data['marker_pos'],
+                    cutted_track_data['marker_pos'][clean_mask,...]], axis=0)
+            self.track_data = track_data
+            self.positive_size += cnt
+        # insert labels
+        if self.labels is None:
+            self.labels = np.zeros(cnt, dtype=np.int64) + label
+        else: self.labels = np.concatenate([self.labels, np.zeros(cnt, dtype=np.int64) + label])
+        self.size += cnt
+        
+        
+    def insert_record_raise_drop(self, record:Record, raise_label:int, drop_label:int) -> None:
+        ''' An adapter for insert raise and drop data only.
+        args:
+            record: Record, the action record.
+            raise_label: int, the label of raise.
+            drop_label: int, the label of drop.
+        '''
+        clean_mask = record.clean_mask
+        cnt = np.sum(clean_mask)
+        imu_data = self.imu_data
+        cutted_imu_data = record.cutted_imu_data
+        # insert imu data
+        if imu_data['acc'] is None:
+            imu_data['acc'] = cutted_imu_data['acc'][clean_mask,...]
+            imu_data['gyro'] = cutted_imu_data['gyro'][clean_mask,...]
+        else:
+            imu_data['acc'] = np.concatenate([imu_data['acc'],
+                cutted_imu_data['acc'][clean_mask,...]], axis=0)
+            imu_data['gyro'] = np.concatenate([imu_data['gyro'],
+                cutted_imu_data['gyro'][clean_mask,...]], axis=0)
         self.imu_data = imu_data
         # insert track data
         track_data = self.track_data
         cutted_track_data = record.cutted_track_data
         if track_data['center_pos'] is None:
-            for key in ('center_pos', 'center_rot', 'marker_pos'):
-                track_data[key] = cutted_track_data[key]
+            track_data['center_pos'] = cutted_track_data['center_pos'][clean_mask,...]
+            track_data['center_rot'] = cutted_track_data['center_rot'][clean_mask,...]
+            track_data['marker_pos'] = cutted_track_data['marker_pos'][clean_mask,...]    
         else:
-            for key in ('center_pos', 'center_rot', 'marker_pos'):
-                track_data[key] = np.concatenate([track_data[key], cutted_track_data[key]], axis=0)
+            track_data['center_pos'] = np.concatenate([track_data['center_pos'],
+                cutted_track_data['center_pos'][clean_mask,...]], axis=0)
+            track_data['center_rot'] = np.concatenate([track_data['center_rot'],
+                cutted_track_data['center_rot'][clean_mask,...]], axis=0)
+            track_data['marker_pos'] = np.concatenate([track_data['marker_pos'],
+                cutted_track_data['marker_pos'][clean_mask,...]], axis=0)
         self.track_data = track_data
         # insert labels
+        labels = np.zeros(cutted_imu_data['acc'].shape[0], dtype=np.int64) + raise_label
+        labels[1::2] = drop_label
         if self.labels is None:
-            self.labels = np.zeros(cnt, dtype=np.int64) + group_id
-        else: self.labels = np.concatenate([self.labels, np.zeros(cnt, dtype=np.int32) + group_id])
+            self.labels = labels[clean_mask]
+        else: self.labels = np.concatenate([self.labels, labels[clean_mask]])
+        self.positive_size += cnt
         self.size += cnt
         
         
     def shuffle(self) -> None:
         ''' Shuffle the reindex mapping.
-            NOTE: always call shuffle after inserting records, or never call shuffle.
+            NOTE: always call shuffle after inserting records.
         '''
         self.reindex_map = np.arange(self.size, dtype=np.int32)
         np.random.shuffle(self.reindex_map)
-        
-    
-    def set_split_mode(self, split_mode:str) -> None:
-        ''' Set a new split mode to retrieve different data.
-        args:
-            split_mode: str, in {'train', 'test'}.
-        '''
-        self.split_mode = split_mode
         
         
 class DataLoader(torch.utils.data.DataLoader):
@@ -120,10 +162,6 @@ class DataLoader(torch.utils.data.DataLoader):
     
     def __init__(self, dataset:Dataset, *args, **kwargs) -> None:
         super(DataLoader, self).__init__(dataset, *args, **kwargs)
-        
-        
-    def set_split_mode(self, split_mode:str) -> None:
-        self.dataset.set_split_mode(split_mode)
     
     
 if __name__ == '__main__':

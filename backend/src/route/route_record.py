@@ -79,6 +79,22 @@ def add_record():
     recordId = request.form.get("recordId")
     timestamp = int(request.form.get("timestamp"))
     record_path = file_utils.get_record_path(taskListId, taskId, subtaskId, recordId)
+    # print info
+    res = []
+    root_list = file_utils.load_root_list_info()
+    for task_list in root_list['tasklists']:
+        if task_list['id'] != taskListId: continue
+        res.append(task_list['name'])
+        for task in task_list['tasks']:
+            if task['id'] != taskId: continue
+            res.append(task['name'])
+            for subtask in task['subtasks']:
+                if subtask['id'] != subtaskId: continue
+                res.append(subtask['name'])
+                break
+            break
+        break
+    print(f'### Record posted to: {" ".join(res)}')
     file_utils.mkdir(record_path)
     file_utils.save_json({}, os.path.join(record_path, str(timestamp)+ ".json"))
     file_utils.append_record_list(taskListId, taskId, subtaskId, userName, recordId)

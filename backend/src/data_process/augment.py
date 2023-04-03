@@ -26,7 +26,7 @@ def calc_local_axes(marker_pos:np.ndarray) -> np.ndarray:
     x_length = np.sqrt(np.sum(np.square(x_axis), axis=1))
     x_axis[x_length < 1e-8, :] = [1e-8, 0, 0]
     x_axis /= np.sqrt(np.sum(np.square(x_axis), axis=1))[:,None]
-    y_axis = marker_pos[4,:,:] - marker_pos[1,:,:]
+    y_axis = marker_pos[2,:,:] - marker_pos[0,:,:]
     y_axis -= x_axis * np.sum(y_axis * x_axis, axis=1)[:,None]
     y_length = np.sqrt(np.sum(np.square(y_axis), axis=1))
     y_axis[y_length < 1e-8, :] = [0, 1e-8, 0]

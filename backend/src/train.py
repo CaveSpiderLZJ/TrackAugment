@@ -17,17 +17,13 @@ import config as cf
 import file_utils as fu
 from data_process.record import Record
 from data_process.dataset import Dataset, DataLoader
-from train.model import Model
-from train.feature import feature
+from train.model import *
 
 
 def main():
     # config parameters
-    model = Model()
-    device = torch.device(cf.DEVICE)
-    task_list_id = 'TL13r912je'
-    task_id = 'TKfvdarv6k'
-    subtask_ids = ['ST6klid59e', 'STxw6enkhj', 'STif8yp26z', 'ST6vwaf9d0']
+    model = Model1()
+    task_list_id = 'TLnmdi15b8'
     n_classes = cf.N_CLASSES
     class_names = cf.CLASS_NAMES
     group_id_to_name = {group_id: group_name for
@@ -41,32 +37,89 @@ def main():
     model_save_dir = f'{cf.MODEL_ROOT}/{cf.MODEL_NAME}'
     log_save_dir = f'{cf.LOG_ROOT}/{cf.MODEL_NAME}'
     
+    # load task list
+    task_lists = fu.load_root_list_info()['tasklists']
+    for task_list in task_lists:
+        if task_list['id'] == task_list_id: break
+    assert task_list['id'] == task_list_id
+    for task in task_list['tasks']:
+        task_id = task['id']
+        for subtask in task['subtasks']:
+            subtask_id = subtask['id']
+            record_list = fu.load_record_list(task_list_id, task_id, subtask_id)
+            record_dict= dict()
+            for item in record_list:
+                record_dict[item['user_name']] = item['record_id']
+            subtask['record_dict'] = record_dict
+    
     # build the dataset and dataloader
-    dataset = Dataset(group_id_to_name, split_mode='train', train_ratio=0.75)
-    for group_id in tqdm.trange(4):
-        subtask_id = subtask_ids[group_id]
-        record_paths = glob(f'{fu.get_subtask_path(task_list_id, task_id, subtask_id)}/RD*')
-        records = []
-        for record_path in record_paths[:1]:
-            records.append(Record(record_path))
-        dataset.insert_records(records, [group_id] * len(records))
-    dataset.shuffle()
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-    dataloader.set_split_mode('train')
+    train_users = set(cf.USERS[:40])
+    test_users = set(cf.USERS[40:])
+    train_dataset = Dataset(negative_label=6)
+    test_dataset = Dataset(negative_label=6)
+    
+    # insert Shake, DoubleShake, Flip and DoubleFlip
+    for task_id, label in (('TK9fe2fbln', 2), ('TK5rsia9fw', 3), ('TKtvkgst8r', 4), ('TKie8k1h6r', 5)):
+        print(f'### {task_id}')
+        for task in task_list['tasks']:
+            if task['id'] == task_id: break
+        assert task['id'] == task_id
+        for subtask in task['subtasks']:
+            subtask_id = subtask['id']
+            print(f'### {subtask_id}')
+            record_dict = subtask['record_dict']
+            for user_name, record_id in record_dict.items():
+                if user_name not in train_users and user_name not in test_users: continue
+                record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
+                record = Record(record_path, subtask['times'])
+                if user_name in train_users:
+                    train_dataset.insert_record(record, label)
+                else: test_dataset.insert_record(record, label)
+                
+    # insert Raise and Drop
+    task_id = 'TK7t3ql6jb'
+    for task in task_list['tasks']:
+        if task['id'] == task_id: break
+    assert task['id'] == task_id
+    print(f'### {task_id}')
+    for subtask in task['subtasks']:
+        subtask_id = subtask['id']
+        print(f'### {subtask_id}')
+        record_dict = subtask['record_dict']
+        for user_name, record_id in record_dict.items():
+            if user_name not in train_users and user_name not in test_users: continue
+            record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
+            record = Record(record_path, subtask['times'])
+            if user_name in train_users:
+                train_dataset.insert_record_raise_drop(record, raise_label=0, drop_label=1)
+            else: test_dataset.insert_record_raise_drop(record, raise_label=0, drop_label=1)
+    # insert negetive data
+    # task_id = 'TKbszc8ch6'
+    # record_paths = glob(f'{fu.get_task_path(task_list_id, task_id)}/ST*/RD*')
+    # for record_path in record_paths:
+    #     record = Record(record_path)
+    #     dataset.insert_record(record, 0)    
+    # dataset.shuffle()
+    # dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    # dataloader.set_split_mode('train')
+    train_dataset.shuffle()
+    test_dataset.shuffle()
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
     
     # utils
     if os.path.exists(model_save_dir): shutil.rmtree(model_save_dir)
     os.makedirs(model_save_dir)
     if os.path.exists(log_save_dir): shutil.rmtree(log_save_dir)
     os.makedirs(log_save_dir)
-    model = model.to(device)
+    model = model.to(cf.DEVICE)
     logger = SummaryWriter(log_save_dir)
     train_criterion = nn.CrossEntropyLoss()
     test_criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     warmup_scheduler = optim.lr_scheduler.LinearLR(optimizer,
         start_factor=1/warmup_steps, end_factor=1.0, total_iters=warmup_steps)
-    train_step = len(dataloader) * n_epochs - warmup_steps
+    train_step = len(train_dataloader) * n_epochs - warmup_steps
     train_scheduler = optim.lr_scheduler.LinearLR(optimizer,
         start_factor=1.0, end_factor=1/train_step, total_iters=train_step)
     scheduler = optim.lr_scheduler.SequentialLR(optimizer,
@@ -80,10 +133,9 @@ def main():
     for epoch in range(n_epochs):
         gc.collect()
         train_loss = 0.0
-        for i, batch in enumerate(dataloader):
-            device = next(model.parameters()).device
+        for i, batch in enumerate(train_dataloader):
             data: torch.Tensor = batch['data']
-            label: torch.Tensor = batch['label']
+            label: torch.Tensor = batch['label'].to(cf.DEVICE)
             output: torch.Tensor = model(data.transpose(1,2))
             loss: torch.Tensor = train_criterion(output, label)
             loss.backward()
@@ -91,7 +143,7 @@ def main():
             optimizer.step()
             scheduler.step()
             optimizer.zero_grad()
-        train_loss /= len(dataloader)
+        train_loss /= len(train_dataloader)
         lr = optimizer.param_groups[0]['lr']
         train_log.append({"epoch": epoch, "lr": lr, "loss": train_loss})
         if epoch % log_steps == 0:
@@ -99,16 +151,14 @@ def main():
             logger.add_scalar('Loss', train_loss, epoch)
         if epoch % eval_steps == 0:  # test model on testing dataset
             model.eval()
-            dataloader.set_split_mode('test')
             class_correct = np.zeros(n_classes, dtype=np.int32)
             class_total = np.zeros(n_classes, dtype=np.int32)
             matrix = np.zeros((n_classes, n_classes), dtype=np.int32)
             test_loss = 0.0
             with torch.no_grad():
-                for i, batch in enumerate(dataloader):
-                    device = next(model.parameters()).device
-                    data: torch.Tensor = batch['data'].to(device)
-                    label: torch.Tensor = batch['label'].to(device)
+                for i, batch in enumerate(test_dataloader):
+                    data: torch.Tensor = batch['data']
+                    label: torch.Tensor = batch['label'].to(cf.DEVICE)
                     output: torch.Tensor = model(data.transpose(1,2))
                     test_loss += test_criterion(output, label).item()
                     _, predicted = torch.max(output, dim=1)
@@ -119,10 +169,9 @@ def main():
                         is_correct = c[i]
                         class_correct[l] += is_correct
                         class_total[l] += 1
-            test_loss /= len(dataloader)
+            test_loss /= len(test_dataloader)
             logger.add_scalar("Test Loss", test_loss, epoch)
             model.train()
-            dataloader.set_split_mode('train')
             acc = np.diag(matrix).sum() / matrix.sum()
             accs.append(acc)
             if acc > max_acc:
@@ -142,4 +191,3 @@ if __name__ == '__main__':
     torch.manual_seed(cf.RAND_SEED)
     fu.check_cwd()
     main()
-            

@@ -30,8 +30,4 @@ public class RandomUtils {
     public static String generateRandomRecordId() {
         return "RD" + generateRandomId(8);
     }
-
-    public static String generateRandomTrainId() {
-        return "XT" + generateRandomId(8);
-    }
 }

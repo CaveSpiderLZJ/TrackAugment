@@ -8,7 +8,7 @@ import config as cf
 
 
 DEFAULT_TASK_LIST_ID = "TL13r912je"
-DEFAULT_ROOT = os.path.join("..", "assets", "default")
+DEFAULT_ROOT = os.path.join("..", "assets")
 DATA_ROOT = os.path.join("..", "data")
 DATA_RECORD_ROOT = os.path.join(DATA_ROOT, "record")
 DATA_TRAIN_ROOT = os.path.join(DATA_ROOT, "train")
@@ -50,9 +50,7 @@ def get_task_path(task_list_id:str, task_id:str):
 def get_subtask_path(task_list_id:str, task_id:str, subtask_id:str):
     return os.path.join(get_task_path(task_list_id, task_id), subtask_id)
 
-def get_record_list_path(task_list_id:str, task_id:str, subtask_id:str, dataset_version='0.2'):
-    if dataset_version == '0.1':
-        return os.path.join(get_subtask_path(task_list_id, task_id, subtask_id), 'recordlist.txt')
+def get_record_list_path(task_list_id:str, task_id:str, subtask_id:str):
     return os.path.join(get_subtask_path(task_list_id, task_id, subtask_id), 'recordlist.json')
 
 def get_record_path(task_list_id:str, task_id:str, subtask_id:str, record_id:str):
@@ -95,7 +93,7 @@ def load_json(path):
         return json.load(fin)
     
 
-def load_root_list_info() -> List:
+def load_root_list_info() -> Dict:
     root_list_path = get_root_list_info_path()
     if not os.path.exists(root_list_path): return []
     with open(root_list_path, 'r') as f:
@@ -118,26 +116,11 @@ def load_task_list_info(task_list_id):
         return json.load(f)
 
 
-def load_record_list(task_list_id, task_id, subtask_id, dataset_version):
-    record_list_path = get_record_list_path(task_list_id, task_id, subtask_id, dataset_version)
-    if not os.path.exists(record_list_path):
-        return []
-
-    record_list = []
-    if dataset_version == '0.1':
-        with open(record_list_path, 'r') as f:
-            lines = f.readlines()
-            for line in lines:
-                record_id = line.strip()
-                if record_id.startswith('RD') and record_id not in record_list:
-                    record_list.append(record_id)
-    else:
-        with open(record_list_path, 'r') as fin:
-            records = json.load(fin)
-            for record in records:
-                record_list.append(record['record_id'])
-        
-    return record_list
+def load_record_list(task_list_id, task_id, subtask_id):
+    record_list_path = get_record_list_path(task_list_id, task_id, subtask_id)
+    if os.path.exists(record_list_path):
+        return json.load(open(record_list_path, 'r'))
+    return []
 
 
 def append_record_list(task_list_id, task_id, subtask_id, user_name, record_id, dataset_version='0.2'):
@@ -165,19 +148,6 @@ def save_record_file(file, file_path):
     f = open(file_path, 'wb')
     file.save(f)
     f.close()
-    '''
-    try:
-        record_path = "/".join(file_path.split('/')[:-1])
-        file_suffix = "_".join((file_path.split('/')[-1]).split('_')[1:])
-        if file_suffix.endswith('json'):
-            sensor_path = os.path.join(record_path, "Sensor_" + file_suffix)
-            timestamp_path = os.path.join(record_path, "Timestamp_" + file_suffix)
-            if os.path.exists(sensor_path) and os.path.exists(timestamp_path):
-                Record(sensor_path, timestamp_path, do_cut=False)
-
-    except:
-        pass
-    '''
 
 def save_file(file, file_path):
     file.save(file_path)
@@ -215,13 +185,8 @@ def get_md5(filename):
 
 def create_default_files():
     mkdir(DATA_RECORD_ROOT)
-    mkdir(DATA_TRAIN_ROOT)
-    mkdir(DATA_FILE_ROOT)
-    mkdir(DATA_DEX_ROOT)
-    mkdir(DATA_TEMP_ROOT)
-    shutil.copyfile(os.path.join(DEFAULT_ROOT, "config.json"), os.path.join(DATA_FILE_ROOT, "config.json"))
-    default_task_list_src = os.path.join(DEFAULT_ROOT, DEFAULT_TASK_LIST_ID)
-    default_task_list_dst = os.path.join(DATA_RECORD_ROOT, DEFAULT_TASK_LIST_ID)
+    default_task_list_src = os.path.join(DEFAULT_ROOT, 'record')
+    default_task_list_dst = DATA_RECORD_ROOT
     if os.path.exists(default_task_list_src) and not os.path.exists(default_task_list_dst):
         shutil.copytree(default_task_list_src, default_task_list_dst)
     
@@ -235,5 +200,5 @@ def check_cwd():
         
 
 if __name__ == '__main__':
-    root_list = load_root_list()
+    root_list = load_root_list_info()
     print(root_list)
