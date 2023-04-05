@@ -3,7 +3,7 @@ from __main__ import app
 
 from ml.cutter.peak_cutter import PeakCutter
 from ml.cutter.random_cutter import RandomCutter
-from train_process import TrainProcess
+from deprecated.train_process import TrainProcess
 
 import file_utils
 import os

@@ -149,6 +149,28 @@ class Dataset(torch.utils.data.Dataset):
         self.size += cnt
         
         
+    def insert_negativa_data(self, negative_data:np.ndarray, label:int):
+        ''' Insert negative data in batch.
+        args:
+            negative_data: np.ndarray[(N, int(FS_PREPROCESS*WINDOW_DURATION), 6), np.float32].
+            label: int, the negative label.
+        '''
+        cnt = negative_data.shape[0]
+        imu_data = self.imu_data
+        if imu_data['acc'] is None:
+            imu_data['acc'] = negative_data[:,:,:3]
+            imu_data['gyro'] = negative_data[:,:,3:]
+        else:
+            imu_data['acc'] = np.concatenate([imu_data['acc'], negative_data[:,:,:3]], axis=0)
+            imu_data['gyro'] = np.concatenate([imu_data['gyro'], negative_data[:,:,3:]], axis=0)
+        self.imu_data = imu_data
+        labels = np.zeros(cnt, dtype=np.int64) + label
+        if self.labels is None:
+            self.labels = labels
+        else: self.labels = np.concatenate([self.labels, labels])
+        self.size += cnt     
+        
+        
     def shuffle(self) -> None:
         ''' Shuffle the reindex mapping.
             NOTE: always call shuffle after inserting records.

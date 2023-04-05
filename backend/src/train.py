@@ -1,7 +1,9 @@
 import os
 import gc
+import copy
 import tqdm
 import shutil
+import pickle
 import numpy as np
 from glob import glob
 from matplotlib import pyplot as plt
@@ -26,8 +28,6 @@ def main():
     task_list_id = 'TLnmdi15b8'
     n_classes = cf.N_CLASSES
     class_names = cf.CLASS_NAMES
-    group_id_to_name = {group_id: group_name for
-        group_id, group_name in zip(range(n_classes), class_names)}
     n_epochs = cf.N_EPOCHS
     learning_rate = cf.LEARNING_RATE
     batch_size = cf.BATCH_SIZE
@@ -53,55 +53,82 @@ def main():
             subtask['record_dict'] = record_dict
     
     # build the dataset and dataloader
-    train_users = set(cf.USERS[:40])
-    test_users = set(cf.USERS[40:])
+    users = list(cf.USERS)
+    np.random.shuffle(users)
+    train_users = set(users[:2])
+    test_users = set(users[2:3])
+    days = list(range(1,76))
+    np.random.shuffle(days)
+    train_days = days[:2]
+    test_days = days[2:3]
+    train_negative_paths = []
+    test_negative_paths = []
+    for day in train_days:
+        train_negative_paths.extend(glob(f'../data/negative/day{day}/*.pkl'))
+    for day in test_days:
+        test_negative_paths.extend(glob(f'../data/negative/day{day}/*.pkl'))
     train_dataset = Dataset(negative_label=6)
     test_dataset = Dataset(negative_label=6)
     
     # insert Shake, DoubleShake, Flip and DoubleFlip
-    for task_id, label in (('TK9fe2fbln', 2), ('TK5rsia9fw', 3), ('TKtvkgst8r', 4), ('TKie8k1h6r', 5)):
-        print(f'### {task_id}')
+    print(f'### Insert Shake, DoubleShake, Filp and DoubleFlip.')
+    record_info = []
+    for task_id, label in (('TK9fe2fbln', 3), ('TK5rsia9fw', 4), ('TKtvkgst8r', 5), ('TKie8k1h6r', 6)):
         for task in task_list['tasks']:
             if task['id'] == task_id: break
         assert task['id'] == task_id
         for subtask in task['subtasks']:
             subtask_id = subtask['id']
-            print(f'### {subtask_id}')
             record_dict = subtask['record_dict']
             for user_name, record_id in record_dict.items():
                 if user_name not in train_users and user_name not in test_users: continue
-                record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
-                record = Record(record_path, subtask['times'])
-                if user_name in train_users:
-                    train_dataset.insert_record(record, label)
-                else: test_dataset.insert_record(record, label)
+                record_info.append((task_id, subtask_id, record_id, user_name, subtask['times'], label))
+    for task_id, subtask_id, record_id, user_name, times, label in tqdm.tqdm(record_info):
+        record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
+        record = Record(record_path, times)
+        if user_name in train_users:
+            train_dataset.insert_record(record, label)
+        else: test_dataset.insert_record(record, label)
                 
     # insert Raise and Drop
+    print(f'### Insert Raise and Drop.')
+    record_info = []
     task_id = 'TK7t3ql6jb'
     for task in task_list['tasks']:
         if task['id'] == task_id: break
     assert task['id'] == task_id
-    print(f'### {task_id}')
     for subtask in task['subtasks']:
         subtask_id = subtask['id']
-        print(f'### {subtask_id}')
         record_dict = subtask['record_dict']
         for user_name, record_id in record_dict.items():
             if user_name not in train_users and user_name not in test_users: continue
-            record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
-            record = Record(record_path, subtask['times'])
-            if user_name in train_users:
-                train_dataset.insert_record_raise_drop(record, raise_label=0, drop_label=1)
-            else: test_dataset.insert_record_raise_drop(record, raise_label=0, drop_label=1)
-    # insert negetive data
-    # task_id = 'TKbszc8ch6'
-    # record_paths = glob(f'{fu.get_task_path(task_list_id, task_id)}/ST*/RD*')
-    # for record_path in record_paths:
-    #     record = Record(record_path)
-    #     dataset.insert_record(record, 0)    
-    # dataset.shuffle()
-    # dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-    # dataloader.set_split_mode('train')
+            record_info.append((subtask_id, record_id, user_name, subtask['times']))
+    for subtask_id, record_id, user_name, times in tqdm.tqdm(record_info):
+        record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
+        record = Record(record_path, times)
+        if user_name in train_users:
+            train_dataset.insert_record_raise_drop(record, raise_label=1, drop_label=2)
+        else: test_dataset.insert_record_raise_drop(record, raise_label=1, drop_label=2)
+            
+    # insert negative data
+    print(f'### Insert Negative.')
+    negative_batch = 100
+    W = int(cf.FS_PREPROCESS * cf.WINDOW_DURATION)
+    for i in tqdm.trange(int(np.ceil(len(train_negative_paths)/negative_batch))):
+        negative_data = []
+        for path in train_negative_paths[i*negative_batch:(i+1)*negative_batch]:
+            data = pickle.load(open(path, 'rb'))
+            negative_data.append(data[None,:W,:])
+        negative_data = np.concatenate(negative_data, axis=0)
+        train_dataset.insert_negativa_data(negative_data, label=0)
+    for i in tqdm.trange(int(np.ceil(len(test_negative_paths)/negative_batch))):
+        negative_data = []
+        for path in test_negative_paths[i*negative_batch:(i+1)*negative_batch]:
+            data = pickle.load(open(path, 'rb'))
+            negative_data.append(data[None,:W,:])
+        negative_data = np.concatenate(negative_data, axis=0)
+        test_dataset.insert_negativa_data(negative_data, label=0)
+    
     train_dataset.shuffle()
     test_dataset.shuffle()
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
