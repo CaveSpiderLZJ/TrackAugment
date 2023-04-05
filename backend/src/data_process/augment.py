@@ -136,7 +136,7 @@ def resample(data:np.ndarray, axis:int, ratio:float) -> np.ndarray:
     dtype = data.dtype
     N = data.shape[axis]
     M = int(N * ratio)
-    t = np.arange(N, dtype=np.float32)
+    t = np.arange(N, dtype=np.float64)
     x = np.linspace(0, N-1, num=M, endpoint=True)
     interp_func = interp.interp1d(t, data, kind='quadratic', axis=axis)
     return interp_func(x).astype(dtype)

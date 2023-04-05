@@ -34,21 +34,6 @@ class Record:
         self.load_track_data()
         self.load_imu_data()
         self.align_imu_data_frequency()
-        # gyro = self.imu_data['gyro']
-        # acc = self.imu_data['acc']
-        # center_pos = self.track_data['center_pos']
-        # marker_pos = self.track_data['marker_pos']
-        # axes = aug.calc_local_axes(marker_pos)
-        # generated_acc = aug.track_to_acc(center_pos, axes, cf.FS_PREPROCESS)
-        # generated_gyro = aug.track_to_gyro(axes, cf.FS_PREPROCESS)
-        # # plt.subplot(2, 1, 1)
-        # for i in range(3):
-        #     plt.plot(generated_gyro[:,i])
-        # # plt.subplot(2, 1, 2)
-        # for i in range(3):
-        #     plt.plot(gyro[:,i])
-        # plt.show()
-        # exit()
         self.align_track_and_imu_data()
         self.cut_data()
         

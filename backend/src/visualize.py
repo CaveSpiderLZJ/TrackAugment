@@ -2,6 +2,7 @@ import os
 import cv2
 import time
 import tqdm
+import pickle
 import numpy as np
 import pandas as pd
 from glob import glob
@@ -484,24 +485,41 @@ def visualize_clean_mask():
     cv2.waitKey()
     cv2.destroyAllWindows()
     
+    
+def visualize_cleaned_negative_data():
+    paths = glob(f'../data/negative/day*/*.pkl')
+    np.random.shuffle(paths)
+    paths = paths[:10]
+    for path in paths:
+        file_name = path.split('/')[-1].split('.')[0]
+        data = pickle.load(open(path, 'rb'))
+        plt.subplot(2, 1, 1)
+        for i in range(3): plt.plot(data[:,i])
+        plt.subplot(2, 1, 2)
+        for i in range(3): plt.plot(data[:,i+3])
+        plt.savefig(f'../data/media/{file_name}.jpg')
+        plt.clf()
+    
 
 if __name__ == '__main__':
     np.random.seed(0)
     fu.check_cwd()
-    task_list_id = 'TLnmdi15b8'
-    task_id = 'TK7t3ql6jb'  # RD
-    subtask_id = 'STyrpwqe0o' # SF
-    record_id = 'RD0kkvx4dy'
-    record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
-    tic = time.perf_counter()
-    record = Record(record_path, n_sample=20)
-    toc = time.perf_counter()
-    print(f'time: {(toc-tic)*1000:.3f} ms')
-    
-    dataset = Dataset()
-    dataset.insert_record_raise_drop(record, 1, 2)
+    # task_list_id = 'TLnmdi15b8'
+    # task_id = 'TK7t3ql6jb'  # RD
+    # subtask_id = 'STyrpwqe0o' # SF
+    # record_id = 'RD0kkvx4dy'
+    # record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
+    # tic = time.perf_counter()
+    # record = Record(record_path, n_sample=20)
+    # toc = time.perf_counter()
+    # print(f'time: {(toc-tic)*1000:.3f} ms')
     
     # visualize_filter(record)
     # visualize_error()
     # visualize_clean_mask()
+    # visualize_cleaned_negative_data()
+    
+    paths = glob('../data/negative/day*/*.pkl')
+    print(len(paths))
+    
     
