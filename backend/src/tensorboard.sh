@@ -1,0 +1,1 @@
+tensorboard --logdir ../data/log --host server.qinyue.world --port 6008
