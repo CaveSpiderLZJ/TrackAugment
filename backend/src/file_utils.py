@@ -123,6 +123,24 @@ def load_record_list(task_list_id, task_id, subtask_id):
     return []
 
 
+def load_task_list_with_users(task_list_id:int):
+    task_lists = load_root_list_info()['tasklists']
+    for task_list in task_lists:
+        if task_list['id'] == task_list_id: break
+    if task_list['id'] != task_list_id:
+        return None
+    for task in task_list['tasks']:
+        task_id = task['id']
+        for subtask in task['subtasks']:
+            subtask_id = subtask['id']
+            record_list = load_record_list(task_list_id, task_id, subtask_id)
+            record_dict= dict()
+            for item in record_list:
+                record_dict[item['user_name']] = item['record_id']
+            subtask['record_dict'] = record_dict
+    return task_list
+
+
 def append_record_list(task_list_id, task_id, subtask_id, user_name, record_id, dataset_version='0.2'):
     record_list_path = get_record_list_path(task_list_id, task_id, subtask_id, dataset_version)
     if not os.path.exists(record_list_path):
