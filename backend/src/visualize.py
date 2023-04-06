@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 from glob import glob
 from mpl_toolkits import mplot3d
+from sklearn.manifold import TSNE
 from matplotlib import pyplot as plt
 from matplotlib import gridspec as gs
 from matplotlib.pyplot import MultipleLocator
@@ -499,6 +500,112 @@ def visualize_cleaned_negative_data():
         for i in range(3): plt.plot(data[:,i+3])
         plt.savefig(f'../data/media/{file_name}.jpg')
         plt.clf()
+        
+
+def visualize_tsne():
+    data = []
+    labels = np.zeros(0, dtype=np.int32)
+    task_list_id = 'TLnmdi15b8'
+    user_set = list(cf.USERS)
+    np.random.shuffle(user_set)
+    user_set = set(user_set)
+    days = list(range(1,76))
+    np.random.shuffle(days)
+    day_set = set(days[:25])
+    negative_paths = []
+    for day in day_set:
+        negative_paths.extend(glob(f'../data/negative/day{day}/*.pkl'))
+    
+    # load task list
+    task_list = fu.load_task_list_with_users(task_list_id)
+    assert task_list is not None
+            
+    # load Shake, DoubleShake, Flip, DoubleFlip by users
+    print(f'### Load Shake, DoubleShake, Filp and DoubleFlip.')
+    record_info = []
+    for task_id, label in (('TK9fe2fbln', 3), ('TK5rsia9fw', 4), ('TKtvkgst8r', 5), ('TKie8k1h6r', 6)):
+        for task in task_list['tasks']:
+            if task['id'] == task_id: break
+        assert task['id'] == task_id
+        for subtask in task['subtasks']:
+            subtask_id = subtask['id']
+            record_dict = subtask['record_dict']
+            for user_name, record_id in record_dict.items():
+                if user_name not in user_set: continue
+                record_info.append((task_id, subtask_id, record_id, user_name, subtask['times'], label))
+    for task_id, subtask_id, record_id, user_name, times, label in tqdm.tqdm(record_info):
+        record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
+        try:
+            record = Record(record_path, times)
+        except:
+            print(f'### Error: {record_path}')
+            continue
+        clean_mask = record.clean_mask
+        acc_data = record.cutted_imu_data['acc']
+        gyro_data = record.cutted_imu_data['gyro']
+        imu_data = np.concatenate([acc_data, gyro_data], axis=2)[clean_mask,...]
+        imu_data = aug.down_sample_by_step(imu_data, axis=1, step=2)
+        imu_data = np.reshape(imu_data, (imu_data.shape[0], -1))
+        data.append(imu_data)
+        labels = np.concatenate([labels, np.zeros(np.sum(clean_mask), dtype=np.int32) + label])
+        
+    # load Raise and Drop
+    print(f'### Load Raise and Drop.')
+    record_info = []
+    task_id = 'TK7t3ql6jb'
+    for task in task_list['tasks']:
+        if task['id'] == task_id: break
+    assert task['id'] == task_id
+    for subtask in task['subtasks']:
+        subtask_id = subtask['id']
+        record_dict = subtask['record_dict']
+        for user_name, record_id in record_dict.items():
+            if user_name not in user_set: continue
+            record_info.append((subtask_id, record_id, user_name, subtask['times']))
+    for subtask_id, record_id, user_name, times in tqdm.tqdm(record_info):
+        record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
+        try:
+            record = Record(record_path, times)
+        except:
+            print(f'### Error: {record_path}')
+            continue
+        clean_mask = record.clean_mask
+        acc_data = record.cutted_imu_data['acc']
+        gyro_data = record.cutted_imu_data['gyro']
+        imu_data = np.concatenate([acc_data, gyro_data], axis=2)[clean_mask,...]
+        imu_data = aug.down_sample_by_step(imu_data, axis=1, step=2)
+        imu_data = np.reshape(imu_data, (imu_data.shape[0], -1))
+        data.append(imu_data)
+        new_labels = np.zeros(times, dtype=np.int32) + 1
+        new_labels[1::2] = 2
+        labels = np.concatenate([labels, new_labels[clean_mask]])
+    
+    # load negative data
+    print(f'### Load Negative.')
+    batch = 100
+    W = int(cf.FS_PREPROCESS * cf.WINDOW_DURATION)
+    for i in tqdm.trange(int(np.ceil(len(negative_paths)/batch))):
+        negative_data = []
+        for path in negative_paths[i*batch:(i+1)*batch]:
+            item = pickle.load(open(path, 'rb'))
+            negative_data.append(item[None,:W,:])
+        negative_data = np.concatenate(negative_data, axis=0)
+        negative_data = aug.down_sample_by_step(negative_data, axis=1, step=2)
+        negative_data = np.reshape(negative_data, (negative_data.shape[0], -1))
+        data.append(negative_data)
+        labels = np.concatenate([labels, np.zeros(negative_data.shape[0], dtype=np.int32)])
+    data = np.concatenate(data, axis=0)
+    
+    # plot t-SNE graph
+    color_map = {0:'black', 1:'red', 2:'orange', 3:'green', 4:'blue', 5:'purple', 6:'pink'}
+    colors = [color_map[i] for i in labels]
+    tic = time.perf_counter()
+    tsne = TSNE()
+    embedded = tsne.fit_transform(data)
+    toc = time.perf_counter()
+    print(f'### t-SNE time cost: {toc-tic:.3f} s')
+    plt.scatter(embedded[:,0], embedded[:,1], c=colors, s=1)
+    plt.show()
     
 
 if __name__ == '__main__':
@@ -518,8 +625,6 @@ if __name__ == '__main__':
     # visualize_error()
     # visualize_clean_mask()
     # visualize_cleaned_negative_data()
-    
-    paths = glob('../data/negative/day*/*.pkl')
-    print(len(paths))
+    visualize_tsne()
     
     

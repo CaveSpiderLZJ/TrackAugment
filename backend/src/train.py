@@ -38,19 +38,8 @@ def main():
     log_save_dir = f'{cf.LOG_ROOT}/{cf.MODEL_NAME}'
     
     # load task list
-    task_lists = fu.load_root_list_info()['tasklists']
-    for task_list in task_lists:
-        if task_list['id'] == task_list_id: break
-    assert task_list['id'] == task_list_id
-    for task in task_list['tasks']:
-        task_id = task['id']
-        for subtask in task['subtasks']:
-            subtask_id = subtask['id']
-            record_list = fu.load_record_list(task_list_id, task_id, subtask_id)
-            record_dict= dict()
-            for item in record_list:
-                record_dict[item['user_name']] = item['record_id']
-            subtask['record_dict'] = record_dict
+    task_list = fu.load_task_list_with_users(task_list_id)
+    assert task_list is not None
     
     # build the dataset and dataloader
     users = list(cf.USERS)
