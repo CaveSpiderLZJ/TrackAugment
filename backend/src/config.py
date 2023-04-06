@@ -20,6 +20,7 @@ FS_IMU: Dict[str, int] = {      # the frequencies of the original imu sensors
     'gravity': 100,
     'rotation': 100,
 }
+
 MARKER_DIS = np.array([[.06775,.09995,.12611,.13021,.15169], [.09111,.11171,.11587,.12611,.14103],
     [.05080,.06775,.08562,.12124,.14103], [.03489,.05080,.07206,.09995,.11587],
     [.03489,.04208,.08562,.11171,.13021], [.04208,.07206,.09111,.12124,.15169]])
@@ -34,13 +35,18 @@ RAND_SEED = 0
 FS_TRAIN = 100
 MODEL_ROOT = '../data/model'
 LOG_ROOT = '../data/log'
-MODEL_NAME = '1_test_epoch500_lr1e-4'
+MODEL_NAME = 'debug'
 N_CLASSES = 7
 CLASS_NAMES = ('Negative', 'Raise', 'Drop', 'Shake', 'DoubleShake', 'Flip', 'DoubleFlip')
-N_EPOCHS = 500
-LEARNING_RATE = 1e-4
+N_TRAIN_USERS = 40   # positive, users
+N_TEST_USERS = 15
+N_TRAIN_DAYS = 15    # negative, days
+N_TEST_DAYS = 5
+N_EPOCHS = 100
+LEARNING_RATE = 2e-4
 BATCH_SIZE = 100
 WARMUP_STEPS = 10
 LOG_STEPS = 1
 EVAL_STEPS = 5
+GC_STEPS = 4
 DEVICE = torch.device('cuda')
