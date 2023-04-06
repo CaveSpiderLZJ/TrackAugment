@@ -55,12 +55,12 @@ def main():
     # build the dataset and dataloader
     users = list(cf.USERS)
     np.random.shuffle(users)
-    train_users = set(users[:2])
-    test_users = set(users[2:3])
+    train_users = set(users[:40])
+    test_users = set(users[40:])
     days = list(range(1,76))
     np.random.shuffle(days)
-    train_days = days[:2]
-    test_days = days[2:3]
+    train_days = days[:15]
+    test_days = days[15:20]
     train_negative_paths = []
     test_negative_paths = []
     for day in train_days:
@@ -85,7 +85,11 @@ def main():
                 record_info.append((task_id, subtask_id, record_id, user_name, subtask['times'], label))
     for task_id, subtask_id, record_id, user_name, times, label in tqdm.tqdm(record_info):
         record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
-        record = Record(record_path, times)
+        try:
+            record = Record(record_path, times)
+        except:
+            print(f'### Error: {record_path}')
+            continue
         if user_name in train_users:
             train_dataset.insert_record(record, label)
         else: test_dataset.insert_record(record, label)
@@ -105,7 +109,11 @@ def main():
             record_info.append((subtask_id, record_id, user_name, subtask['times']))
     for subtask_id, record_id, user_name, times in tqdm.tqdm(record_info):
         record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
-        record = Record(record_path, times)
+        try:
+            record = Record(record_path, times)
+        except:
+            print(f'### Error: {record_path}')
+            continue
         if user_name in train_users:
             train_dataset.insert_record_raise_drop(record, raise_label=1, drop_label=2)
         else: test_dataset.insert_record_raise_drop(record, raise_label=1, drop_label=2)
