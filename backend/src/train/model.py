@@ -103,11 +103,12 @@ class LinearBnDropout(nn.Module):
         
 
 class Model1(nn.Module):
+    ''' Directly borrowed from ProxiMic IMUModel8.
+    '''
     
     
     def __init__(self) -> None:
-        super(Model1, self).__init__()
-        self.feature_extractor = feature2
+        super().__init__()
         feature_channels = 24
         window_length = int(cf.WINDOW_DURATION * cf.FS_TRAIN)
         self.conv1 = nn.Conv1d(in_channels=feature_channels, out_channels=20, kernel_size=1)
@@ -121,7 +122,6 @@ class Model1(nn.Module):
         
     
     def forward(self, x) -> torch.Tensor:
-        x = self.feature_extractor(x).to(cf.DEVICE)
         x = F.relu(self.conv1(x)).transpose(1, 2)
         x = F.relu(self.conv2(x)).transpose(1, 2)
         x = (x + F.relu(self.conv3(x))).transpose(1, 2)
@@ -139,7 +139,6 @@ class Model2(nn.Module):
     
     def __init__(self) -> None:
         super().__init__()
-        self.feature_extractor = feature2
         self.mbconv0 = nn.Sequential(MBConv(4, 16, 1, 2, 1), MBConv(16, 24, 6, 1, 2))
         self.mbconv1 = nn.Sequential(MBConv(4, 16, 1, 2, 1), MBConv(16, 24, 6, 1, 2))
         self.mbconv2 = nn.Sequential(MBConv(4, 16, 1, 2, 1), MBConv(16, 24, 6, 1, 2))
@@ -156,7 +155,6 @@ class Model2(nn.Module):
 
     
     def forward(self, x) -> torch.Tensor:
-        x = self.feature_extractor(x).to(cf.DEVICE)
         x0 = self.mbconv0(x[:,0:4,:])
         x1 = self.mbconv0(x[:,4:8,:])
         x2 = self.mbconv0(x[:,8:12,:])
@@ -180,7 +178,6 @@ class Model3(nn.Module):
     
     def __init__(self) -> None:
         super().__init__()
-        self.feature_extractor = feature2
         self.mbconv1 = MBConv(24, 48, 1, 2, 1)
         self.mbconv4 = MBConv(48, 48, 4, 1, 2)
         self.conv = nn.Conv1d(in_channels=48, out_channels=24, kernel_size=3, stride=1, padding=1)
@@ -192,7 +189,6 @@ class Model3(nn.Module):
         
         
     def forward(self, x) -> torch.Tensor:
-        x = self.feature_extractor(x).to(cf.DEVICE)
         x = self.mbconv1(x)
         x = self.mbconv4(x)
         x = self.conv(x)
@@ -205,8 +201,77 @@ class Model3(nn.Module):
         return x
     
     
+class Model4(nn.Module):
+    ''' Change all conv in Model1 to ConvBnAct, all linear to LinearBnDropout,
+        with kernel size not changed, to reduce overfit.
+    '''
+    
+    def __init__(self) -> None:
+        super().__init__()
+        feature_channels = 24
+        window_length = int(cf.WINDOW_DURATION * cf.FS_TRAIN)
+        self.C, self.L = 24, 32
+        self.conv1 = ConvBnAct(in_channels=feature_channels, out_channels=self.C, kernel_size=1)
+        self.conv2 = ConvBnAct(in_channels=window_length, out_channels=self.C, kernel_size=1)
+        self.conv3 = ConvBnAct(in_channels=self.C, out_channels=self.C, kernel_size=1)
+        self.conv4 = ConvBnAct(in_channels=self.C, out_channels=self.C, kernel_size=1)
+        self.conv5 = ConvBnAct(in_channels=self.C, out_channels=self.C, kernel_size=1)
+        self.conv6 = ConvBnAct(in_channels=self.C, out_channels=self.C, kernel_size=1)
+        self.linear1 = LinearBnDropout(self.C*self.C, self.L, p=0.5)
+        self.linear2 = nn.Linear(self.L, cf.N_CLASSES)
+        
+    
+    def forward(self, x) -> torch.Tensor:
+        x = self.conv1(x).transpose(1, 2)
+        x = self.conv2(x).transpose(1, 2)
+        x = (x + self.conv3(x)).transpose(1, 2)
+        x = (x + self.conv4(x)).transpose(1, 2)
+        x = (x + self.conv5(x)).transpose(1, 2)
+        x = x + self.conv6(x)
+        x = x.view(-1, self.C*self.C)
+        x = self.linear1(x)
+        x = self.linear2(x)
+        return x
+    
+
+class Model5(nn.Module):
+    ''' Add more parameters based on Model4:
+        kernel_size: 1 -> 3; add two more linear layers.
+    '''
+    
+    def __init__(self) -> None:
+        super().__init__()
+        feature_channels = 24
+        window_length = int(cf.WINDOW_DURATION * cf.FS_TRAIN)
+        self.conv1 = ConvBnAct(in_channels=feature_channels, out_channels=20, kernel_size=3, padding=1)
+        self.conv2 = ConvBnAct(in_channels=window_length, out_channels=20, kernel_size=3, padding=1)
+        self.conv3 = ConvBnAct(in_channels=20, out_channels=20, kernel_size=3, padding=1)
+        self.conv4 = ConvBnAct(in_channels=20, out_channels=20, kernel_size=3, padding=1)
+        self.conv5 = ConvBnAct(in_channels=20, out_channels=20, kernel_size=3, padding=1)
+        self.conv6 = ConvBnAct(in_channels=20, out_channels=20, kernel_size=3, padding=1)
+        self.linear1 = LinearBnDropout(400, 100, p=0.5)
+        self.linear2 = LinearBnDropout(100, 40, p=0.5)
+        self.linear3 = LinearBnDropout(40, 20, p=0.5)
+        self.linear4 = nn.Linear(20, cf.N_CLASSES)
+        
+    
+    def forward(self, x) -> torch.Tensor:
+        x = self.conv1(x).transpose(1, 2)
+        x = self.conv2(x).transpose(1, 2)
+        x = (x + self.conv3(x)).transpose(1, 2)
+        x = (x + self.conv4(x)).transpose(1, 2)
+        x = (x + self.conv5(x)).transpose(1, 2)
+        x = x + self.conv6(x)
+        x = x.view(-1, 400)
+        x = self.linear1(x)
+        x = self.linear2(x)
+        x = self.linear3(x)
+        x = self.linear4(x)
+        return x
+    
+    
 if __name__ == '__main__':
-    model = Model3()
+    model = Model5()
     params = model.parameters()
     total = 0
     for item in params:

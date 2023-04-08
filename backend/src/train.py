@@ -2,6 +2,7 @@ import os
 import gc
 import copy
 import tqdm
+import time
 import shutil
 import pickle
 import numpy as np
@@ -20,16 +21,18 @@ import file_utils as fu
 from data_process.record import Record
 from data_process.dataset import Dataset, DataLoader
 from train.model import *
+from train.feature import feature2
 
 
 def main():
     # config parameters
-    model = Model1()
+    model = Model4()
     task_list_id = 'TLnmdi15b8'
     n_classes = cf.N_CLASSES
     class_names = cf.CLASS_NAMES
     n_epochs = cf.N_EPOCHS
     learning_rate = cf.LEARNING_RATE
+    super_batch = cf.SUPER_BATCH
     batch_size = cf.BATCH_SIZE
     warmup_steps = cf.WARMUP_STEPS
     log_steps = cf.LOG_STEPS
@@ -44,20 +47,20 @@ def main():
     # build the dataset and dataloader
     users = list(cf.USERS)
     np.random.shuffle(users)
-    train_users = set(users[:40])
-    test_users = set(users[40:])
+    train_users = set(users[:cf.N_TRAIN_USERS])
+    test_users = set(users[cf.N_TRAIN_USERS:cf.N_TRAIN_USERS+cf.N_TEST_USERS])
     days = list(range(1,76))
     np.random.shuffle(days)
-    train_days = days[:15]
-    test_days = days[15:20]
+    train_days = days[:cf.N_TRAIN_DAYS]
+    test_days = days[cf.N_TRAIN_DAYS:cf.N_TRAIN_DAYS+cf.N_TEST_DAYS]
     train_negative_paths = []
     test_negative_paths = []
     for day in train_days:
         train_negative_paths.extend(glob(f'../data/negative/day{day}/*.pkl'))
     for day in test_days:
         test_negative_paths.extend(glob(f'../data/negative/day{day}/*.pkl'))
-    train_dataset = Dataset(negative_label=6)
-    test_dataset = Dataset(negative_label=6)
+    train_dataset = Dataset()
+    test_dataset = Dataset()
     
     # insert Shake, DoubleShake, Flip and DoubleFlip
     print(f'### Insert Shake, DoubleShake, Filp and DoubleFlip.')
@@ -128,8 +131,10 @@ def main():
     
     train_dataset.shuffle()
     test_dataset.shuffle()
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size,
+        shuffle=True, num_workers=4, pin_memory=True)
+    test_dataloader = DataLoader(test_dataset, batch_size=batch_size,
+        shuffle=True, num_workers=4, pin_memory=True)
     
     # utils
     if os.path.exists(model_save_dir): shutil.rmtree(model_save_dir)
@@ -143,9 +148,9 @@ def main():
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     warmup_scheduler = optim.lr_scheduler.LinearLR(optimizer,
         start_factor=1/warmup_steps, end_factor=1.0, total_iters=warmup_steps)
-    train_step = len(train_dataloader) * n_epochs - warmup_steps
+    train_steps = len(train_dataloader) * n_epochs - warmup_steps
     train_scheduler = optim.lr_scheduler.LinearLR(optimizer,
-        start_factor=1.0, end_factor=1/train_step, total_iters=train_step)
+        start_factor=1.0, end_factor=1/train_steps, total_iters=train_steps)
     scheduler = optim.lr_scheduler.SequentialLR(optimizer,
         schedulers=[warmup_scheduler, train_scheduler], milestones=[warmup_steps])
     
@@ -154,45 +159,70 @@ def main():
     train_log = []
     accs = []
     optimizer.zero_grad()
+    tic = time.perf_counter()
+    
     for epoch in range(n_epochs):
-        gc.collect()
+        if (epoch+1) % cf.GC_STEPS == 0:
+            gc.collect()
         train_loss = 0.0
+        
+        data, label = [], []
         for i, batch in enumerate(train_dataloader):
-            data: torch.Tensor = batch['data']
-            label: torch.Tensor = batch['label'].to(cf.DEVICE)
-            output: torch.Tensor = model(data.transpose(1,2))
-            loss: torch.Tensor = train_criterion(output, label)
-            loss.backward()
-            train_loss += loss.detach().item()
-            optimizer.step()
-            scheduler.step()
-            optimizer.zero_grad()
+            data.append(batch['data'])
+            label.append(batch['label'])
+            if (i+1) % super_batch != 0 and (i+1) != len(train_dataloader):
+                continue
+            data = feature2(torch.concat(data,dim=0).transpose(1,2)).to(cf.DEVICE)
+            label = torch.concat(label, dim=0).to(cf.DEVICE)
+            for j in range(int(np.ceil(data.shape[0]/batch_size))):
+                output: torch.Tensor = model(data[j*batch_size:(j+1)*batch_size,:,:])
+                loss: torch.Tensor = train_criterion(output, label[j*batch_size:(j+1)*batch_size])
+                loss.backward()
+                train_loss += loss.detach().item()
+                optimizer.step()
+                scheduler.step()
+                optimizer.zero_grad()
+            data, label = [], []
+            
         train_loss /= len(train_dataloader)
         lr = optimizer.param_groups[0]['lr']
         train_log.append({"epoch": epoch, "lr": lr, "loss": train_loss})
-        if epoch % log_steps == 0:
-            print(f'epoch: {epoch}, lr: {lr:.4e}, loss: {train_loss:.4e}')
+        
+        if (epoch+1) % log_steps == 0:
+            print(f'epoch: {epoch}, lr: {lr:.3e}, loss: {train_loss:.3e}')
+            logger.add_scalar('Learning Rate', lr, epoch)
             logger.add_scalar('Loss', train_loss, epoch)
-        if epoch % eval_steps == 0:  # test model on testing dataset
+            
+        if (epoch+1) % eval_steps == 0:  # test model on testing dataset
             model.eval()
             class_correct = np.zeros(n_classes, dtype=np.int32)
             class_total = np.zeros(n_classes, dtype=np.int32)
             matrix = np.zeros((n_classes, n_classes), dtype=np.int32)
             test_loss = 0.0
-            with torch.no_grad():
+            
+            with torch.no_grad():  
+                data, label = [], []
                 for i, batch in enumerate(test_dataloader):
-                    data: torch.Tensor = batch['data']
-                    label: torch.Tensor = batch['label'].to(cf.DEVICE)
-                    output: torch.Tensor = model(data.transpose(1,2))
-                    test_loss += test_criterion(output, label).item()
-                    _, predicted = torch.max(output, dim=1)
-                    c = (predicted == label)
-                    for i in range(len(label)):
-                        l = label[i]
-                        matrix[l.item(), predicted[i].item()] += 1
-                        is_correct = c[i]
-                        class_correct[l] += is_correct
-                        class_total[l] += 1
+                    data.append(batch['data'])
+                    label.append(batch['label'])
+                    if (i+1) % super_batch != 0 and (i+1) != len(test_dataloader):
+                        continue
+                    data = feature2(torch.concat(data,dim=0).transpose(1,2)).to(cf.DEVICE)
+                    label = torch.concat(label, dim=0).to(cf.DEVICE)
+                    for j in range(int(np.ceil(data.shape[0]/batch_size))):
+                        output: torch.Tensor = model(data[j*batch_size:(j+1)*batch_size,:,:])
+                        label_batch = label[j*batch_size:(j+1)*batch_size]
+                        test_loss: torch.Tensor = train_criterion(output, label_batch)
+                        _, predicted = torch.max(output, dim=1)
+                        c = (predicted == label_batch)
+                        for k in range(len(label_batch)):
+                            l = label_batch[k]
+                            matrix[l.item(), predicted[k].item()] += 1
+                            is_correct = c[k]
+                            class_correct[l] += is_correct
+                            class_total[l] += 1
+                    data, label = [], []
+            
             test_loss /= len(test_dataloader)
             logger.add_scalar("Test Loss", test_loss, epoch)
             model.train()
@@ -201,13 +231,19 @@ def main():
             if acc > max_acc:
                 max_acc = acc
                 torch.save(model.state_dict(), os.path.join(model_save_dir, 'best.model'))
-            print(f'-'*64)
+            torch.save(model.state_dict(), os.path.join(model_save_dir, f'{epoch}.model'))
+            print(f'+{"-"*71}+')
             for i in range(n_classes):
-                print(f'Accuracy of {class_names[i]:12s}: {(100*matrix[i,i]/matrix[i,:].sum()):.1f} %')                        
-                logger.add_scalar(f'Accuracy of {class_names[i]}', 100*matrix[i,i]/matrix[i,:].sum(), epoch)
-            print(f'-'*64)
+                row = matrix[i,:].copy()
+                row = 100 * row / np.sum(row)
+                print(f'| Accuracy of {class_names[i]:12s}: {row[i]:.1f} % | ', end='')
+                print(' '.join([f'{item:.1f}'.rjust(4) for item in row]) + ' |')
+                logger.add_scalar(f'Accuracy of {class_names[i]}', row[i], epoch)
+            print(f'+{"-"*71}+')
             logger.add_scalar('Accuracy', acc, epoch)
+    toc = time.perf_counter()
     print(f'Genaral acc: {(100*np.mean(accs[-10:])):.1f} %')
+    print(f'Training time: {toc-tic:.1f} s')
     
 
 if __name__ == '__main__':

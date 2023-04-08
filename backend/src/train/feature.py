@@ -28,12 +28,12 @@ def feature1(x:np.ndarray) -> np.ndarray:
     return torch.from_numpy(res.astype(np.float32))
 
 
-def feature2(x:np.ndarray) -> np.ndarray:
+def feature2(x:torch.Tensor) -> torch.Tensor:
     ''' Filter the data and put the same axis together.
     args:
-        x: np.ndarray[(batch_size, channels, length)], the model input.
+        x: torch.Tensor[(batch_size, channels, length)], the model input.
     returns:
-        np.ndarray, the generated features.
+        torch.Tensor, the generated features.
     '''
     n_channel = x.shape[1]
     res = signal.detrend(x, axis=2)

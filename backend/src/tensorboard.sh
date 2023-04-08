@@ -1,0 +1,1 @@
+tar -czvf ../data/log.tar.gz ../data/log
