@@ -5,6 +5,7 @@ import tqdm
 import time
 import shutil
 import pickle
+import random
 import numpy as np
 from glob import glob
 from matplotlib import pyplot as plt
@@ -22,6 +23,11 @@ from data_process.record import Record
 from data_process.dataset import Dataset, DataLoader
 from train.model import *
 from train.feature import feature2
+
+
+def worker_init_fn(worker_id:int):
+    random.seed(cf.RAND_SEED + worker_id)
+    np.random.seed(cf.RAND_SEED + worker_id)
 
 
 def main():
@@ -113,7 +119,7 @@ def main():
     # insert negative data
     print(f'### Insert Negative.')
     negative_batch = 100
-    W = int(cf.FS_PREPROCESS * cf.WINDOW_DURATION)
+    W = int(cf.FS_PREPROCESS * cf.CUT_DURATION)
     for i in tqdm.trange(int(np.ceil(len(train_negative_paths)/negative_batch))):
         negative_data = []
         for path in train_negative_paths[i*negative_batch:(i+1)*negative_batch]:
@@ -132,9 +138,9 @@ def main():
     train_dataset.shuffle()
     test_dataset.shuffle()
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size,
-        shuffle=True, num_workers=4, pin_memory=True)
+        shuffle=True, pin_memory=True, num_workers=True, worker_init_fn=worker_init_fn)
     test_dataloader = DataLoader(test_dataset, batch_size=batch_size,
-        shuffle=True, num_workers=4, pin_memory=True)
+        shuffle=True, pin_memory=True, num_workers=True, worker_init_fn=worker_init_fn)
     
     # utils
     if os.path.exists(model_save_dir): shutil.rmtree(model_save_dir)
@@ -247,6 +253,7 @@ def main():
     
 
 if __name__ == '__main__':
+    random.seed(cf.RAND_SEED)
     np.random.seed(cf.RAND_SEED)
     torch.manual_seed(cf.RAND_SEED)
     fu.check_cwd()

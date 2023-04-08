@@ -190,7 +190,7 @@ class Record:
         track_data = self.track_data
         imu_data = self.imu_data
         gyro = imu_data['gyro']
-        window_length = int(cf.WINDOW_DURATION * cf.FS_PREPROCESS)
+        window_length = int(cf.CUT_DURATION * cf.FS_PREPROCESS)
         cutter = PeakCutter(self.n_sample, window_length, noise=0,
             fs=cf.FS_PREPROCESS, fs_stop=0.005*cf.FS_PREPROCESS)
         # discard the first sample

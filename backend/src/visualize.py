@@ -583,7 +583,7 @@ def visualize_tsne():
     # load negative data
     print(f'### Load Negative.')
     batch = 100
-    W = int(cf.FS_PREPROCESS * cf.WINDOW_DURATION)
+    W = int(cf.FS_PREPROCESS * cf.CUT_DURATION)
     for i in tqdm.trange(int(np.ceil(len(negative_paths)/batch))):
         negative_data = []
         for path in negative_paths[i*batch:(i+1)*batch]:
@@ -607,24 +607,38 @@ def visualize_tsne():
     plt.scatter(embedded[:,0], embedded[:,1], c=colors, s=1)
     plt.show()
     
+    
+def visualize_data_distribution():
+    task_list_id = f'TLnmdi15b8'
+    task_id, n_sample = f'TKtvkgst8r', 20
+    paths = glob(f'{fu.DATA_RECORD_ROOT}/{task_list_id}/{task_id}/ST*/RD*')
+    for path in tqdm.tqdm(paths):
+        record = Record(path, n_sample)
+        gyro = record.cutted_imu_data['gyro']
+        for i in range(gyro.shape[0]):
+            for j in range(3):
+                plt.plot(gyro[i,:,j])
+    plt.show()
+    
 
 if __name__ == '__main__':
     np.random.seed(0)
     fu.check_cwd()
-    # task_list_id = 'TLnmdi15b8'
-    # task_id = 'TK7t3ql6jb'  # RD
-    # subtask_id = 'STyrpwqe0o' # SF
-    # record_id = 'RD0kkvx4dy'
-    # record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
-    # tic = time.perf_counter()
-    # record = Record(record_path, n_sample=20)
-    # toc = time.perf_counter()
-    # print(f'time: {(toc-tic)*1000:.3f} ms')
+    task_list_id = 'TLnmdi15b8'
+    task_id = 'TK7t3ql6jb'  # RD
+    subtask_id = 'STyrpwqe0o' # SF
+    record_id = 'RD0kkvx4dy'
+    record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
+    tic = time.perf_counter()
+    record = Record(record_path, n_sample=20)
+    toc = time.perf_counter()
+    print(f'time: {(toc-tic)*1000:.3f} ms')
     
     # visualize_filter(record)
     # visualize_error()
     # visualize_clean_mask()
     # visualize_cleaned_negative_data()
-    visualize_tsne()
+    # visualize_tsne()
+    visualize_data_distribution()
     
     

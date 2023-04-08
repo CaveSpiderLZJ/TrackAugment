@@ -38,7 +38,12 @@ class Dataset(torch.utils.data.Dataset):
         # If idx after reindex_map >= positive size, it means the sample at idx is negative data,
         # which does not has track_data. Return imu data directly.
         if self.reindex_map is not None: idx = self.reindex_map[idx]
-        sample = np.concatenate([self.imu_data['acc'][idx,:,:], self.imu_data['gyro'][idx,:,:]], axis=1)
+        w_cut = int(cf.CUT_DURATION * cf.FS_PREPROCESS)
+        w_train = int(cf.TRAIN_DURATION * cf.FS_PREPROCESS)
+        if cf.RANDOM_SAMPLE_EN: start = np.random.randint(0, w_cut - w_train)
+        else: start = (w_cut - w_train) // 2
+        sample = np.concatenate([self.imu_data['acc'][idx,start:start+w_train,:],
+            self.imu_data['gyro'][idx,start:start+w_train,:]], axis=1)
         sample = aug.down_sample_by_step(sample, axis=0, step=(cf.FS_PREPROCESS//cf.FS_TRAIN))
         return {'data': sample, 'label': self.labels[idx]}
     
