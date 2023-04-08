@@ -26,12 +26,13 @@ from train.feature import feature2
 
 def main():
     # config parameters
-    model = Model1()
+    model = Model4()
     task_list_id = 'TLnmdi15b8'
     n_classes = cf.N_CLASSES
     class_names = cf.CLASS_NAMES
     n_epochs = cf.N_EPOCHS
     learning_rate = cf.LEARNING_RATE
+    super_batch = cf.SUPER_BATCH
     batch_size = cf.BATCH_SIZE
     warmup_steps = cf.WARMUP_STEPS
     log_steps = cf.LOG_STEPS
@@ -58,8 +59,8 @@ def main():
         train_negative_paths.extend(glob(f'../data/negative/day{day}/*.pkl'))
     for day in test_days:
         test_negative_paths.extend(glob(f'../data/negative/day{day}/*.pkl'))
-    train_dataset = Dataset(negative_label=6)
-    test_dataset = Dataset(negative_label=6)
+    train_dataset = Dataset()
+    test_dataset = Dataset()
     
     # insert Shake, DoubleShake, Flip and DoubleFlip
     print(f'### Insert Shake, DoubleShake, Filp and DoubleFlip.')
@@ -130,8 +131,10 @@ def main():
     
     train_dataset.shuffle()
     test_dataset.shuffle()
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size,
+        shuffle=True, num_workers=4, pin_memory=True)
+    test_dataloader = DataLoader(test_dataset, batch_size=batch_size,
+        shuffle=True, num_workers=4, pin_memory=True)
     
     # utils
     if os.path.exists(model_save_dir): shutil.rmtree(model_save_dir)
@@ -162,21 +165,25 @@ def main():
         if (epoch+1) % cf.GC_STEPS == 0:
             gc.collect()
         train_loss = 0.0
+        
         data, label = [], []
         for i, batch in enumerate(train_dataloader):
             data.append(batch['data'])
             label.append(batch['label'])
-        data = feature2(torch.concat(data,dim=0).transpose(1,2)).to(cf.DEVICE)
-        label = torch.concat(label, dim=0).to(cf.DEVICE)
-        
-        for i in range(int(np.ceil(data.shape[0]/batch_size))):
-            output: torch.Tensor = model(data[i*batch_size:(i+1)*batch_size,:,:])
-            loss: torch.Tensor = train_criterion(output, label[i*batch_size:(i+1)*batch_size])
-            loss.backward()
-            train_loss += loss.detach().item()
-            optimizer.step()
-            scheduler.step()
-            optimizer.zero_grad()
+            if (i+1) % super_batch != 0 and (i+1) != len(train_dataloader):
+                continue
+            data = feature2(torch.concat(data,dim=0).transpose(1,2)).to(cf.DEVICE)
+            label = torch.concat(label, dim=0).to(cf.DEVICE)
+            for j in range(int(np.ceil(data.shape[0]/batch_size))):
+                output: torch.Tensor = model(data[j*batch_size:(j+1)*batch_size,:,:])
+                loss: torch.Tensor = train_criterion(output, label[j*batch_size:(j+1)*batch_size])
+                loss.backward()
+                train_loss += loss.detach().item()
+                optimizer.step()
+                scheduler.step()
+                optimizer.zero_grad()
+            data, label = [], []
+            
         train_loss /= len(train_dataloader)
         lr = optimizer.param_groups[0]['lr']
         train_log.append({"epoch": epoch, "lr": lr, "loss": train_loss})
@@ -192,25 +199,30 @@ def main():
             class_total = np.zeros(n_classes, dtype=np.int32)
             matrix = np.zeros((n_classes, n_classes), dtype=np.int32)
             test_loss = 0.0
-            data, label = [], []
-            for i, batch in enumerate(test_dataloader):
-                data.append(batch['data'])
-                label.append(batch['label'])
-            data = feature2(torch.concat(data,dim=0).transpose(1,2)).to(cf.DEVICE)
-            label = torch.concat(label, dim=0).to(cf.DEVICE)
-            with torch.no_grad():                
-                for i in range(int(np.ceil(data.shape[0]/batch_size))):
-                    output: torch.Tensor = model(data[i*batch_size:(i+1)*batch_size,:,:])
-                    label_batch = label[i*batch_size:(i+1)*batch_size]
-                    test_loss: torch.Tensor = train_criterion(output, label_batch)
-                    _, predicted = torch.max(output, dim=1)
-                    c = (predicted == label_batch)
-                    for i in range(len(label_batch)):
-                        l = label_batch[i]
-                        matrix[l.item(), predicted[i].item()] += 1
-                        is_correct = c[i]
-                        class_correct[l] += is_correct
-                        class_total[l] += 1
+            
+            with torch.no_grad():  
+                data, label = [], []
+                for i, batch in enumerate(test_dataloader):
+                    data.append(batch['data'])
+                    label.append(batch['label'])
+                    if (i+1) % super_batch != 0 and (i+1) != len(test_dataloader):
+                        continue
+                    data = feature2(torch.concat(data,dim=0).transpose(1,2)).to(cf.DEVICE)
+                    label = torch.concat(label, dim=0).to(cf.DEVICE)
+                    for j in range(int(np.ceil(data.shape[0]/batch_size))):
+                        output: torch.Tensor = model(data[j*batch_size:(j+1)*batch_size,:,:])
+                        label_batch = label[j*batch_size:(j+1)*batch_size]
+                        test_loss: torch.Tensor = train_criterion(output, label_batch)
+                        _, predicted = torch.max(output, dim=1)
+                        c = (predicted == label_batch)
+                        for k in range(len(label_batch)):
+                            l = label_batch[k]
+                            matrix[l.item(), predicted[k].item()] += 1
+                            is_correct = c[k]
+                            class_correct[l] += is_correct
+                            class_total[l] += 1
+                    data, label = [], []
+            
             test_loss /= len(test_dataloader)
             logger.add_scalar("Test Loss", test_loss, epoch)
             model.train()
@@ -219,6 +231,7 @@ def main():
             if acc > max_acc:
                 max_acc = acc
                 torch.save(model.state_dict(), os.path.join(model_save_dir, 'best.model'))
+            torch.save(model.state_dict(), os.path.join(model_save_dir, f'{epoch}.model'))
             print(f'+{"-"*71}+')
             for i in range(n_classes):
                 row = matrix[i,:].copy()
@@ -234,15 +247,7 @@ def main():
     
 
 if __name__ == '__main__':
-    # np.random.seed(cf.RAND_SEED)
-    # torch.manual_seed(cf.RAND_SEED)
-    # fu.check_cwd()
-    # main()
-    
-    model = Model4()
-    params = model.parameters()
-    total = 0
-    for item in params:
-        print(item.shape, np.prod(item.shape))
-        total += np.prod(item.shape)
-    print(f'### total: {total // 1000} k')
+    np.random.seed(cf.RAND_SEED)
+    torch.manual_seed(cf.RAND_SEED)
+    fu.check_cwd()
+    main()

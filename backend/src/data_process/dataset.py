@@ -13,12 +13,9 @@ from data_process.record import Record
 class Dataset(torch.utils.data.Dataset):
     
     
-    def __init__(self, negative_label:int) -> None:
+    def __init__(self) -> None:
         ''' Init the dataset data structures.
-        args:
-            negative_label: int, the negative label.
         '''
-        self.negative_label = negative_label
         self.size = 0
         self.positive_size = 0
         self.track_data = {'center_pos': None, 'center_rot': None, 'marker_pos': None}
@@ -80,22 +77,21 @@ class Dataset(torch.utils.data.Dataset):
                 cutted_imu_data['gyro'][clean_mask,...]], axis=0)
         self.imu_data = imu_data
         # insert track data
-        if label != self.negative_label:
-            track_data = self.track_data
-            cutted_track_data = record.cutted_track_data
-            if track_data['center_pos'] is None:
-                track_data['center_pos'] = cutted_track_data['center_pos'][clean_mask,...]
-                track_data['center_rot'] = cutted_track_data['center_rot'][clean_mask,...]
-                track_data['marker_pos'] = cutted_track_data['marker_pos'][clean_mask,...]    
-            else:
-                track_data['center_pos'] = np.concatenate([track_data['center_pos'],
-                    cutted_track_data['center_pos'][clean_mask,...]], axis=0)
-                track_data['center_rot'] = np.concatenate([track_data['center_rot'],
-                    cutted_track_data['center_rot'][clean_mask,...]], axis=0)
-                track_data['marker_pos'] = np.concatenate([track_data['marker_pos'],
-                    cutted_track_data['marker_pos'][clean_mask,...]], axis=0)
-            self.track_data = track_data
-            self.positive_size += cnt
+        track_data = self.track_data
+        cutted_track_data = record.cutted_track_data
+        if track_data['center_pos'] is None:
+            track_data['center_pos'] = cutted_track_data['center_pos'][clean_mask,...]
+            track_data['center_rot'] = cutted_track_data['center_rot'][clean_mask,...]
+            track_data['marker_pos'] = cutted_track_data['marker_pos'][clean_mask,...]    
+        else:
+            track_data['center_pos'] = np.concatenate([track_data['center_pos'],
+                cutted_track_data['center_pos'][clean_mask,...]], axis=0)
+            track_data['center_rot'] = np.concatenate([track_data['center_rot'],
+                cutted_track_data['center_rot'][clean_mask,...]], axis=0)
+            track_data['marker_pos'] = np.concatenate([track_data['marker_pos'],
+                cutted_track_data['marker_pos'][clean_mask,...]], axis=0)
+        self.track_data = track_data
+        self.positive_size += cnt
         # insert labels
         if self.labels is None:
             self.labels = np.zeros(cnt, dtype=np.int64) + label
