@@ -1,1 +1,1 @@
-tensorboard --logdir ../data/log --host server.qinyue.world --port 6008
+tar -czvf ../data/log.tar.gz ../data/log
