@@ -5,6 +5,7 @@ from matplotlib import pyplot as plt
 from typing import Tuple, List, Dict
 
 import config as cf
+from data_process.dtw import dtw_match
 from data_process.filter import Butterworth
 
 
@@ -133,13 +134,12 @@ def resample(data:np.ndarray, axis:int, ratio:float) -> np.ndarray:
     returns:
         np.ndarray, the resampled data, dtype = the original dtype.
     '''
-    dtype = data.dtype
     N = data.shape[axis]
-    M = int(N * ratio)
+    M = int(np.round(N * ratio))
     t = np.arange(N, dtype=np.float64)
     x = np.linspace(0, N-1, num=M, endpoint=True)
     interp_func = interp.interp1d(t, data, kind='quadratic', axis=axis)
-    return interp_func(x).astype(dtype)
+    return interp_func(x)
 
 
 def down_sample_by_step(data:np.ndarray, axis:int, step:int) -> np.ndarray:
@@ -294,6 +294,23 @@ def time_warp(data:np.ndarray, axis:int, n_knots:int, std:float) -> np.ndarray:
     ts = ts.clip(0, N-1)
     interp_func = interp.interp1d(np.arange(N), data, axis=axis)
     return interp_func(ts)
+
+
+def dtw_augment(data1:np.ndarray, data2:np.ndarray, axis:int, weight:float=0.5) -> np.ndarray:
+    ''' Use DTW match to smoothly merge data1 and data2, generating new data sequence.
+    args:
+        data1 and data2: np.ndarray, with the same shape.
+        axis: int, indicates the index of the time series.
+        weight: float, in (0, 1), the weight of data1.
+    '''
+    N = data1.shape[axis]
+    _, pairs = dtw_match(data1, data2, axis=axis)
+    pairs = down_sample_by_step(pairs, axis=0, step=32)
+    pairs = resample(pairs, axis=0, ratio=N/pairs.shape[0])
+    f1 = interp.interp1d(np.arange(N), data1, kind='quadratic', axis=axis)
+    f2 = interp.interp1d(np.arange(N), data2, kind='quadratic', axis=axis)
+    x, y = f1(pairs[:,0]), f2(pairs[:,1])
+    return x * weight + y * (1-weight)
 
 
 if __name__ == '__main__':

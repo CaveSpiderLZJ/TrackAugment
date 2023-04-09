@@ -6,6 +6,7 @@ import pickle
 import numpy as np
 import pandas as pd
 from glob import glob
+from scipy import interpolate as interp
 from mpl_toolkits import mplot3d
 from sklearn.manifold import TSNE
 from matplotlib import pyplot as plt
@@ -21,6 +22,7 @@ from data_process import augment as aug
 from data_process.cutter import PeakCutter
 from data_process.filter import Butterworth
 from data_process.dataset import Dataset
+from data_process.dtw import dtw_match
 
 
 def output_track_video(record:Record, save_path:str, start_frame:int, end_frame:int) -> None:
@@ -620,14 +622,29 @@ def visualize_data_distribution():
                 plt.plot(gyro[i,:,j])
     plt.show()
     
-
+    
+def visualize_dtw_augment(record:Record):
+    track_data = record.cutted_track_data
+    center_pos = track_data['center_pos']
+    x = center_pos[4,50:500,:]
+    y = center_pos[10,0:450,:]
+    plt.subplot(3, 1, 1)
+    for i in range(3): plt.plot(x[:,i])
+    plt.subplot(3, 1, 2)
+    z = aug.dtw_augment(x, y, axis=0, weight=0.5)
+    for i in range(3): plt.plot(z[:,i])
+    plt.subplot(3, 1, 3)
+    for i in range(3): plt.plot(y[:,i])
+    plt.show()
+    
+    
 if __name__ == '__main__':
     np.random.seed(0)
     fu.check_cwd()
     task_list_id = 'TLnmdi15b8'
-    task_id = 'TK7t3ql6jb'  # RD
-    subtask_id = 'STyrpwqe0o' # SF
-    record_id = 'RD0kkvx4dy'
+    task_id = 'TK5rsia9fw'
+    subtask_id = 'ST3iz2l96x'
+    record_id = 'RDtcdb42r7'
     record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
     tic = time.perf_counter()
     record = Record(record_path, n_sample=20)
@@ -639,6 +656,7 @@ if __name__ == '__main__':
     # visualize_clean_mask()
     # visualize_cleaned_negative_data()
     # visualize_tsne()
-    visualize_data_distribution()
+    # visualize_data_distribution()
+    visualize_dtw_augment(record)
     
     

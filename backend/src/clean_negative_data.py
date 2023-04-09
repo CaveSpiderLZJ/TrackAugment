@@ -47,8 +47,8 @@ def clean_negative_data(path:str) -> None:
     gyro_data = np.array(gyro_data, dtype=np.float32)
     acc_fs = acc_t.shape[0] * 1e9 / (acc_t[-1] - acc_t[0])
     gyro_fs = gyro_t.shape[0] * 1e9 / (gyro_t[-1] - gyro_t[0])
-    acc_data = aug.resample(acc_data, axis=0, ratio=(cf.FS_PREPROCESS/acc_fs))
-    gyro_data = aug.resample(gyro_data, axis=0, ratio=(cf.FS_PREPROCESS/gyro_fs))
+    acc_data = aug.resample(acc_data, axis=0, ratio=(cf.FS_PREPROCESS/acc_fs)).astype(np.float32)
+    gyro_data = aug.resample(gyro_data, axis=0, ratio=(cf.FS_PREPROCESS/gyro_fs)).astype(np.float32)
     length = min(acc_data.shape[0], gyro_data.shape[0])
     acc_data = acc_data[:length,:]
     gyro_data = gyro_data[:length,:]

@@ -145,10 +145,10 @@ class Record:
         #     'mag', 'mag_un', 'linear_acc', 'gravity', 'rotation')
         acc = imu_data['acc']
         resample_ratio = cf.FS_PREPROCESS / cf.FS_IMU['acc']
-        acc = aug.resample(acc, axis=0, ratio=resample_ratio)
+        acc = aug.resample(acc, axis=0, ratio=resample_ratio).astype(np.float32)
         gyro = imu_data['gyro']
         resample_ratio = cf.FS_PREPROCESS / cf.FS_IMU['gyro']
-        gyro = aug.resample(gyro, axis=0, ratio=resample_ratio)
+        gyro = aug.resample(gyro, axis=0, ratio=resample_ratio).astype(np.float32)
         min_length = min(acc.shape[0], gyro.shape[0])
         acc = acc[:min_length,:]
         gyro = gyro[:min_length,:]
