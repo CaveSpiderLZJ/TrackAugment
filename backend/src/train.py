@@ -135,8 +135,8 @@ def main():
         negative_data = np.concatenate(negative_data, axis=0)
         test_dataset.insert_negativa_data(negative_data, label=0)
     
-    train_dataset.shuffle()
-    test_dataset.shuffle()
+    train_dataset.augment()
+    test_dataset.augment()
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size,
         shuffle=True, pin_memory=True, num_workers=True, worker_init_fn=worker_init_fn)
     test_dataloader = DataLoader(test_dataset, batch_size=batch_size,
@@ -189,7 +189,8 @@ def main():
                 scheduler.step()
                 optimizer.zero_grad()
             data, label = [], []
-            
+        
+        train_dataloader.augment()
         train_loss /= len(train_dataloader)
         lr = optimizer.param_groups[0]['lr']
         train_log.append({"epoch": epoch, "lr": lr, "loss": train_loss})
@@ -258,3 +259,4 @@ if __name__ == '__main__':
     torch.manual_seed(cf.RAND_SEED)
     fu.check_cwd()
     main()
+    

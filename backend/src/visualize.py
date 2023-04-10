@@ -21,7 +21,7 @@ from data_process.record import Record
 from data_process import augment as aug
 from data_process.cutter import PeakCutter
 from data_process.filter import Butterworth
-from data_process.dataset import Dataset
+from data_process.dataset import Dataset, DataLoader
 from data_process.dtw import dtw_match
 
 
@@ -642,14 +642,15 @@ if __name__ == '__main__':
     np.random.seed(0)
     fu.check_cwd()
     task_list_id = 'TLnmdi15b8'
-    task_id = 'TK5rsia9fw'
-    subtask_id = 'ST3iz2l96x'
-    record_id = 'RDtcdb42r7'
+    task_id = 'TK7t3ql6jb'
+    subtask_id = 'STyrpwqe0o'
+    record_id = 'RD3lld0cpc'
     record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
     tic = time.perf_counter()
-    record = Record(record_path, n_sample=20)
+    record = Record(record_path, n_sample=40)
     toc = time.perf_counter()
     print(f'time: {(toc-tic)*1000:.3f} ms')
+    
     
     # visualize_filter(record)
     # visualize_error()
@@ -658,5 +659,3 @@ if __name__ == '__main__':
     # visualize_tsne()
     # visualize_data_distribution()
     visualize_dtw_augment(record)
-    
-    
