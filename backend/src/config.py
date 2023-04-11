@@ -32,6 +32,7 @@ USERS = ('lzj', 'lzj2', 'hz', 'xq', 'zyh', 'hyw', 'zxyx', 'crj', 'jjx', 'zz',
 CUT_DURATION: float = 2.5       # action duration after cutting (s)
 TRAIN_DURATION: float = 2.0     # action duration for training (s)
 RANDOM_SAMPLE_EN: bool = True   # whether to randomly sample action data from cut duration to train duration
+AUG_METHOD: str = 'dtw'          # in {None, 'classic', 'dtw'}
 
 # train
 RAND_SEED = 0
@@ -41,9 +42,9 @@ LOG_ROOT = '../data/log'
 MODEL_NAME = 'debug'
 N_CLASSES = 7
 CLASS_NAMES = ('Negative', 'Raise', 'Drop', 'Shake', 'DoubleShake', 'Flip', 'DoubleFlip')
-N_TRAIN_USERS = 1   # positive, users
+N_TRAIN_USERS = 2   # positive, users
 N_TEST_USERS = 1
-N_TRAIN_DAYS = 1    # negative, days
+N_TRAIN_DAYS = 2    # negative, days
 N_TEST_DAYS = 1
 N_EPOCHS = 10
 LEARNING_RATE = 1e-4

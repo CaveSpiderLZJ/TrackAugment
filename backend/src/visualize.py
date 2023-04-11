@@ -2,10 +2,12 @@ import os
 import cv2
 import time
 import tqdm
+import json
 import pickle
 import numpy as np
 import pandas as pd
 from glob import glob
+from scipy import stats
 from scipy import interpolate as interp
 from mpl_toolkits import mplot3d
 from sklearn.manifold import TSNE
@@ -523,7 +525,7 @@ def visualize_tsne():
     assert task_list is not None
             
     # load Shake, DoubleShake, Flip, DoubleFlip by users
-    print(f'### Load Shake, DoubleShake, Filp and DoubleFlip.')
+    print(f'### Load Shake, DoubleShake, Flip and DoubleFlip.')
     record_info = []
     for task_id, label in (('TK9fe2fbln', 3), ('TK5rsia9fw', 4), ('TKtvkgst8r', 5), ('TKie8k1h6r', 6)):
         for task in task_list['tasks']:
@@ -624,32 +626,98 @@ def visualize_data_distribution():
     
     
 def visualize_dtw_augment(record:Record):
+    weight = 0.5
+    idx1, idx2 = 15, 11
     track_data = record.cutted_track_data
     center_pos = track_data['center_pos']
-    x = center_pos[4,50:500,:]
-    y = center_pos[10,0:450,:]
-    plt.subplot(3, 1, 1)
-    for i in range(3): plt.plot(x[:,i])
-    plt.subplot(3, 1, 2)
-    z = aug.dtw_augment(x, y, axis=0, weight=0.5)
-    for i in range(3): plt.plot(z[:,i])
-    plt.subplot(3, 1, 3)
-    for i in range(3): plt.plot(y[:,i])
+    x1 = center_pos[idx1,:,:]
+    x2 = center_pos[idx2,:,:]
+    x3, pairs = aug.dtw_augment(x1, x2, axis=0, weight=weight, window=None)
+    marker_pos = track_data['marker_pos']
+    y1 = marker_pos[idx1,:,:,:]
+    y2 = marker_pos[idx2,:,:,:]
+    f1 = interp.interp1d(np.arange(500), y1, kind='quadratic', axis=1)
+    f2 = interp.interp1d(np.arange(500), y2, kind='quadratic', axis=1)
+    y3 = f1(pairs[:,0])*weight + f2(pairs[:,1])*(1-weight)
+    axes1 = aug.calc_local_axes(y1)
+    axes2 = aug.calc_local_axes(y2)
+    axes3 = aug.calc_local_axes(y3)
+    gyro1 = aug.track_to_gyro(axes1, fs=cf.FS_PREPROCESS)
+    gyro2 = aug.track_to_gyro(axes2, fs=cf.FS_PREPROCESS)
+    gyro3 = aug.track_to_gyro(axes3, fs=cf.FS_PREPROCESS)
+    acc1 = aug.track_to_acc(x1, axes1, fs=cf.FS_PREPROCESS)
+    acc2 = aug.track_to_acc(x2, axes2, fs=cf.FS_PREPROCESS)
+    acc3 = aug.track_to_acc(x3, axes3, fs=cf.FS_PREPROCESS)
+    plt.subplot(3, 2, 1)
+    for i in range(3): plt.plot(x1[:,i])
+    plt.subplot(3, 2, 3)
+    for i in range(3): plt.plot(x3[:,i])
+    plt.subplot(3, 2, 5)
+    for i in range(3): plt.plot(x2[:,i])
+    plt.subplot(3, 2, 2)
+    for i in range(3): plt.plot(gyro1[:,i])
+    plt.subplot(3, 2, 4)
+    for i in range(3): plt.plot(gyro3[:,i])
+    plt.subplot(3, 2, 6)
+    for i in range(3): plt.plot(gyro2[:,i])
     plt.show()
+    
+
+def visualize_dtw_offset():
+    bad_data = json.load(open(f'../data/bad_data.json', 'r'))
+    np.random.shuffle(bad_data)
+    for item in bad_data:
+        record_path = item['record_path']
+        n_sample = 40 if 'TK7t3ql6jb' in record_path else 20
+        record = Record(record_path, n_sample)
+        weight = 0.5
+        idx1, idx2 = item['idx1'], item['idx2']
+        track_data = record.cutted_track_data
+        center_pos = track_data['center_pos']
+        x1 = center_pos[idx1,:,:]
+        x2 = center_pos[idx2,:,:]
+        dx1 = np.diff(x1, axis=0, append=x1[-1:,:])
+        dx2 = np.diff(x2, axis=0, append=x2[-1:,:])
+        warping_path = aug.dtw_match(dx1, dx2, axis=0, window=200)
+        x3 = aug.dtw_augment(x1, x2, warping_path, axis=0, weight=weight)
+        marker_pos = track_data['marker_pos']
+        y1 = marker_pos[idx1,:,:,:]
+        y2 = marker_pos[idx2,:,:,:]
+        y3 = aug.dtw_augment(y1, y2, warping_path, axis=1, weight=weight)
+        axes1 = aug.calc_local_axes(y1)
+        axes2 = aug.calc_local_axes(y2)
+        axes3 = aug.calc_local_axes(y3)
+        gyro1 = aug.track_to_gyro(axes1, fs=cf.FS_PREPROCESS)
+        gyro2 = aug.track_to_gyro(axes2, fs=cf.FS_PREPROCESS)
+        gyro3 = aug.track_to_gyro(axes3, fs=cf.FS_PREPROCESS)
+        print(f'### {record_path}, {idx1}, {idx2}')
+        plt.subplot(3, 2, 1)
+        for i in range(3): plt.plot(x1[:,i])
+        plt.subplot(3, 2, 3)
+        for i in range(3): plt.plot(x3[:,i])
+        plt.subplot(3, 2, 5)
+        for i in range(3): plt.plot(x2[:,i])
+        plt.subplot(3, 2, 2)
+        for i in range(3): plt.plot(gyro1[:,i])
+        plt.subplot(3, 2, 4)
+        for i in range(3): plt.plot(gyro3[:,i])
+        plt.subplot(3, 2, 6)
+        for i in range(3): plt.plot(gyro2[:,i])
+        plt.show()
     
     
 if __name__ == '__main__':
     np.random.seed(0)
     fu.check_cwd()
-    task_list_id = 'TLnmdi15b8'
-    task_id = 'TK7t3ql6jb'
-    subtask_id = 'STyrpwqe0o'
-    record_id = 'RD3lld0cpc'
-    record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
-    tic = time.perf_counter()
-    record = Record(record_path, n_sample=40)
-    toc = time.perf_counter()
-    print(f'time: {(toc-tic)*1000:.3f} ms')
+    # task_list_id = 'TLnmdi15b8'
+    # task_id = 'TKtvkgst8r'
+    # subtask_id = 'ST1goi2xdj'
+    # record_id = 'RDntekjrpc'
+    # record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
+    # tic = time.perf_counter()
+    # record = Record(record_path, n_sample=20)
+    # toc = time.perf_counter()
+    # print(f'time: {(toc-tic)*1000:.3f} ms')
     
     
     # visualize_filter(record)
@@ -658,4 +726,5 @@ if __name__ == '__main__':
     # visualize_cleaned_negative_data()
     # visualize_tsne()
     # visualize_data_distribution()
-    visualize_dtw_augment(record)
+    # visualize_dtw_augment(record)
+    visualize_dtw_offset()

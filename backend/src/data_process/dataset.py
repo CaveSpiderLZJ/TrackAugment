@@ -1,4 +1,7 @@
+import time
+import json
 import numpy as np
+from scipy import interpolate as interp
 from matplotlib import pyplot as plt
 from typing import Tuple, List, Dict
 
@@ -22,6 +25,7 @@ class Dataset(torch.utils.data.Dataset):
         self.raw_positive_labels = []                                                   #=/
         self.raw_negative_data = {'acc': [], 'gyro': []}                                #=\ negative data
         self.raw_negative_labels = []                                                   #=/
+        self.record_paths = []
         self.augmented_imu_data = None  # (size, window_length, n_channels)
         self.augmented_labels = None    # (size,)
         self.reindex_map = None
@@ -82,6 +86,8 @@ class Dataset(torch.utils.data.Dataset):
         self.raw_track_data['marker_pos'].append(cutted_track_data['marker_pos'][clean_mask,:,:])
         # insert labels
         self.raw_positive_labels.append(np.zeros(cnt, dtype=np.int64) + label)
+        # tmp
+        self.record_paths.append(record.record_path)
         
         
     def insert_record_raise_drop(self, record:Record, raise_label:int, drop_label:int) -> None:
@@ -115,6 +121,9 @@ class Dataset(torch.utils.data.Dataset):
         # insert labels
         self.raw_positive_labels.append(np.zeros(np.sum(raise_mask), dtype=np.int64) + raise_label)
         self.raw_positive_labels.append(np.zeros(np.sum(drop_mask), dtype=np.int64) + drop_label)
+        # tmp
+        self.record_paths.append(record.record_path + '(Raise)')
+        self.record_paths.append(record.record_path + '(Drop)')
         
         
     def insert_negativa_data(self, negative_data:np.ndarray, label:int):
@@ -129,16 +138,50 @@ class Dataset(torch.utils.data.Dataset):
         self.raw_negative_labels.append(np.zeros(cnt, dtype=np.int64) + label)
         
         
-    def augment(self) -> None:
+    def augment(self, method:str=None) -> None:
         ''' Use raw data to generate augmented imu data.
-            TMP: copy raw data directly.
+        args:
+            method: str, in {None, 'classic', 'dtw'}
         '''
         augmented_imu_data = []
         augmented_labels = []
-        for acc, gyro, labels in zip(self.raw_imu_data['acc'],
-            self.raw_imu_data['gyro'], self.raw_positive_labels):
-            augmented_imu_data.append(np.concatenate([acc, gyro], axis=2))
-            augmented_labels.append(labels)
+        if method == 'classic':     # classic augmentation methods on imu data
+            for acc, gyro, labels in zip(self.raw_imu_data['acc'],
+                self.raw_imu_data['gyro'], self.raw_positive_labels):
+                N = labels.shape[0]
+                imu_list = []
+                for i in range(N):
+                    imu = aug.classic_augment(np.concatenate([acc[i,:,:], gyro[i,:,:]], axis=1), axis=0)
+                    imu_list.append(imu[None,:,:])
+                augmented_imu_data.append(np.concatenate(imu_list, axis=0))
+                augmented_labels.append(labels)
+        elif method == 'dtw':       # dtw based augmentation on track data
+            for center_pos, marker_pos, labels in zip(self.raw_track_data['center_pos'],
+                self.raw_track_data['marker_pos'], self.raw_positive_labels):
+                N, T = center_pos.shape[0], center_pos.shape[1]
+                dcenter_pos = np.diff(center_pos, axis=1, append=center_pos[:,-1:,:])
+                imu_list = []
+                weight = 0.5
+                rand_indices = np.random.randint(0, N-1, size=N)
+                rand_indices[rand_indices>=np.arange(N)] += 1
+                for i, idx in enumerate(rand_indices):
+                    warping_path = aug.dtw_match(dcenter_pos[i,:,:],
+                        dcenter_pos[idx,:,:], axis=0, window=int(1.0*cf.FS_PREPROCESS))
+                    augmented_center_pos = aug.dtw_augment(center_pos[i,:,:],
+                        center_pos[idx,:,:], warping_path, axis=0, weight=weight)
+                    augmented_marker_pos = aug.dtw_augment(marker_pos[i,:,:,:],
+                        marker_pos[idx,:,:,:], warping_path, axis=1, weight=weight)
+                    axes = aug.calc_local_axes(augmented_marker_pos)
+                    acc = aug.track_to_acc(augmented_center_pos, axes, fs=cf.FS_PREPROCESS)
+                    gyro = aug.track_to_gyro(axes, fs=cf.FS_PREPROCESS)
+                    imu_list.append(np.concatenate([acc, gyro], axis=1)[None,:,:])
+                augmented_imu_data.append(np.concatenate(imu_list, axis=0))
+                augmented_labels.append(labels)
+        else:                       # no augmentation, copy imu data directly
+            for acc, gyro, labels in zip(self.raw_imu_data['acc'],
+                self.raw_imu_data['gyro'], self.raw_positive_labels):
+                augmented_imu_data.append(np.concatenate([acc, gyro], axis=2))
+                augmented_labels.append(labels)
         for acc, gyro, labels in zip(self.raw_negative_data['acc'],
             self.raw_negative_data['gyro'], self.raw_negative_labels):
             augmented_imu_data.append(np.concatenate([acc, gyro], axis=2))
