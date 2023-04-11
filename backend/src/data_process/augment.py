@@ -1,10 +1,13 @@
 import numpy as np
+from scipy import stats
+from dtaidistance import dtw
 from scipy.spatial.transform import Rotation
 from scipy import interpolate as interp
 from matplotlib import pyplot as plt
 from typing import Tuple, List, Dict
 
 import config as cf
+from data_process.dtw import dtw_match
 from data_process.filter import Butterworth
 
 
@@ -123,23 +126,23 @@ def imu_to_track(acc:np.ndarray, gyro:np.ndarray, bound_pos:np.ndarray,
     return pos, axes
 
 
-def resample(data:np.ndarray, axis:int, ratio:float) -> np.ndarray:
+def resample(data:np.ndarray, axis:int, ratio:float, kind='quadratic') -> np.ndarray:
     ''' Resample data by spline interpolation.
     args:
         data: np.ndarray, with any shape and dtype.
         axis: int, the samping axis.
         ratio: float, the number of resampled data points over
             the number of original data points.
+        kind: str, the interpolation time.
     returns:
         np.ndarray, the resampled data, dtype = the original dtype.
     '''
-    dtype = data.dtype
     N = data.shape[axis]
-    M = int(N * ratio)
+    M = int(np.round(N * ratio))
     t = np.arange(N, dtype=np.float64)
     x = np.linspace(0, N-1, num=M, endpoint=True)
-    interp_func = interp.interp1d(t, data, kind='quadratic', axis=axis)
-    return interp_func(x).astype(dtype)
+    interp_func = interp.interp1d(t, data, kind=kind, axis=axis)
+    return interp_func(x)
 
 
 def down_sample_by_step(data:np.ndarray, axis:int, step:int) -> np.ndarray:
@@ -218,16 +221,33 @@ def rotate(data:np.ndarray, matrix:np.ndarray) -> np.ndarray:
     return np.matmul(matrix, data.transpose(schema)).transpose(schema)
 
 
-def scale(data:np.ndarray, std:float):
-    ''' Scale the data by a random factor alpha ~ N(0, std^2).
+def zoom(data:np.ndarray, axis:int, low:float=0.9, high:float=1.0):
+    ''' Zoom data in time axis, by a random factor s in [low, high].
+    args:
+        data: np.ndarray, of any shape, data to be augmented.
+        axis: int, the index of the time series axis.
+        low: float, the lower bound of the range of s, default = 0.9.
+        high: float, the higher bound of the range of s, default = 1.0.
+    '''
+    N = data.shape[axis]
+    s = np.random.rand() * (high-low) + low
+    start = 0.5 * (1-s) * (N-1)
+    end = start + s * (N-1)
+    t = np.linspace(start, end, num=N)
+    f = interp.interp1d(np.arange(N), data, kind='quadratic',
+        axis=axis, fill_value=0, bounds_error=False)
+    return f(t)
+
+
+def scale(data:np.ndarray, std:float=0.2, low:float=0.0, high:float=2.0) -> np.ndarray:
+    ''' Scale the data by a random factor s ~ N(1, std^2).
     args:
         data: np.ndarray, with any shape and dtype.
         std: float, the std deviation of the scaling factor.
-    returns:
-        np.ndarray, with the same shape and dtype as data.
+        low and high: float, the lower and higher bounds of the random factor.
     '''
-    return data * 1.1
-    return data * (1.0 + np.random.randn() * std)
+    s = np.clip(1.0 + np.random.randn() * std, a_min=low, a_max=high)
+    return data * s
 
 
 def window_slice(data:np.ndarray, axis:int, start:int, window_length:int) -> np.ndarray:
@@ -270,7 +290,8 @@ def magnitude_warp(data:np.ndarray, axis:int, n_knots:int,
     return data * ys[tuple(slices)]
 
 
-def time_warp(data:np.ndarray, axis:int, n_knots:int, std:float) -> np.ndarray:
+def time_warp(data:np.ndarray, axis:int, n_knots:int=4, std:float=0.05,
+        low:float=0.0, high:float=2.0) -> np.ndarray:
     ''' Warp the timestamps by a smooth curve. Unlike magnitude warping,
         time warping always preserves the timestamps at the start and end.
     args:
@@ -281,24 +302,79 @@ def time_warp(data:np.ndarray, axis:int, n_knots:int, std:float) -> np.ndarray:
             and end timestamps, though they are not warped, which means,
             if n_knots == 2, nothing will happen.
         std: float, the standard deviations of knots.
-    returns:
-        np.ndarray, the warped data.
+        low and high: the lower and higher bounds of the random factors.
     '''
     N = data.shape[axis]
     x_knots = np.linspace(0, 1, num=n_knots, endpoint=True, dtype=np.float32)
-    y_knots = x_knots + np.random.randn(n_knots) * std
+    y_knots = x_knots * (1.0 + np.random.randn(n_knots) * std).clip(low, high)
     y_knots[0], y_knots[-1] = 0.0, 1.0
     tck = interp.splrep(x_knots, y_knots, s=0, per=False)
     xs = np.linspace(0, 1, num=N, endpoint=True, dtype=np.float32)
-    ts = (N-1) * interp.splev(xs, tck, der=0)
-    ts = ts.clip(0, N-1)
-    interp_func = interp.interp1d(np.arange(N), data, axis=axis)
-    return interp_func(ts)
+    t = (N-1) * interp.splev(xs, tck, der=0)
+    t = t.clip(0, N-1)
+    f = interp.interp1d(np.arange(N), data, axis=axis)
+    return f(t)
+
+
+def dtw_match(x:np.ndarray, y:np.ndarray, axis:int=0, window:int=None) -> np.ndarray:
+    ''' Match two N-D array along an axis.
+        Return the DTW distance and match pairs.
+    args:
+        x and y: np.ndarray, of any shape, but ndim must be equal,
+            and only the length in <axis> axis could be different.
+        axis: int, the index of axis to be calculated.
+        window: int, the dtw window, default = None.
+    returns:
+        np.ndarray: the DTW warping paths.
+    '''
+    N = x.shape[axis]
+    if axis != 0:
+        indices = list(range(x.ndim))
+        indices[0], indices[axis] = axis, 0
+        x = x.transpose(*indices)
+        y = y.transpose(*indices)
+    warping_path = np.array(dtw.warping_path(stats.zscore(x, axis=None),
+        stats.zscore(y, axis=None), use_c=True, use_ndim=True, window=window), dtype=np.int32)
+    warping_path = down_sample_by_step(warping_path, axis=0, step=32)
+    warping_path = resample(warping_path, axis=0, ratio=N/warping_path.shape[0]).clip(0, N-1)
+    return warping_path
+
+
+def dtw_augment(data1:np.ndarray, data2:np.ndarray,
+        warping_path:np.ndarray, axis:int, weight:float=0.5) -> np.ndarray:
+    ''' Use DTW match to smoothly merge data1 and data2, generating new data sequence.
+    args:
+        data1 and data2: np.ndarray, with the same shape.
+        warping_path: np.ndarray, returned by dtw_match.
+        axis: int, indicates the index of the time series.
+        weight: float, in (0, 1), the weight of data1.
+    returns:
+        np.ndarray, the augmented data.
+    '''
+    N = data1.shape[axis]
+    f1 = interp.interp1d(np.arange(N), data1, kind='quadratic', axis=axis)
+    f2 = interp.interp1d(np.arange(N), data2, kind='quadratic', axis=axis)
+    x, y = f1(warping_path[:,0]), f2(warping_path[:,1])
+    return x * weight + y * (1-weight)
+
+
+def classic_augment(data:np.ndarray, axis:int) -> np.ndarray:
+    ''' Combine Zoom, Scale and Time Warp.
+    args:  
+        data: np.ndarray, of any shape, data to be augmented.
+        axis: int, the time series axis.
+    '''
+    strategies = np.random.randint(1,8)
+    if strategies in (1, 3, 5, 7): data = zoom(data, axis=axis)
+    if strategies in (2, 3, 6, 7): data = scale(data)
+    if strategies in (4, 5, 6, 7): data = time_warp(data, axis=axis)
+    return data
 
 
 if __name__ == '__main__':
-    ts = np.arange(10, dtype=np.float32)
-    ys = np.sin(0.5*np.pi*ts)
-    resampled = resample(ys, axis=0, ratio=0.5)
-    plt.plot(resampled)
+    data1 = np.sin(np.linspace(0, 4*np.pi, num=50))
+    data2 = classic_augment(data1, axis=0)
+    plt.plot(data1)
+    plt.plot(data2)
     plt.show()
+    

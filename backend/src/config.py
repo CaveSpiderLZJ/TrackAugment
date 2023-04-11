@@ -6,7 +6,6 @@ from typing import Dict
 WORKING_DIR = 'TrackAugment/backend/src'
 
 # data preprocessing
-WINDOW_DURATION: float = 2.0    # action duration after cutting for training (s)
 FS_PREPROCESS: int = 200        # the frequency after data resampling (unified for preprocessing)
 FS_TRACK: int = 200             # the frequency of the original track data
 FS_IMU: Dict[str, int] = {      # the frequencies of the original imu sensors
@@ -20,7 +19,6 @@ FS_IMU: Dict[str, int] = {      # the frequencies of the original imu sensors
     'gravity': 100,
     'rotation': 100,
 }
-
 MARKER_DIS = np.array([[.06775,.09995,.12611,.13021,.15169], [.09111,.11171,.11587,.12611,.14103],
     [.05080,.06775,.08562,.12124,.14103], [.03489,.05080,.07206,.09995,.11587],
     [.03489,.04208,.08562,.11171,.13021], [.04208,.07206,.09111,.12124,.15169]])
@@ -29,6 +27,12 @@ USERS = ('lzj', 'lzj2', 'hz', 'xq', 'zyh', 'hyw', 'zxyx', 'crj', 'jjx', 'zz',
     'hfx', 'yjy', 'hyh', 'shb', 'zcw', 'xwx', 'gx', 'cx', 'bwy', 'xw',
     'lez', 'll', 'ykh', 'lyl', 'xjy', 'wzn', 'ysc', 'wxy', 'pyh', 'fhy',
     'ljw', 'wyf', 'cyj', 'yzj', 'lap', 'lxt', 'cyf', 'qk', 'mfj', 'lby', 'wzy2')
+
+# data augmentation
+CUT_DURATION: float = 2.5       # action duration after cutting (s)
+TRAIN_DURATION: float = 2.0     # action duration for training (s)
+RANDOM_SAMPLE_EN: bool = True   # whether to randomly sample action data from cut duration to train duration
+AUG_METHOD: str = 'dtw'          # in {None, 'classic', 'dtw'}
 
 # train
 RAND_SEED = 0
@@ -50,4 +54,4 @@ WARMUP_STEPS = 10
 LOG_STEPS = 1
 EVAL_STEPS = 5
 GC_STEPS = 4
-DEVICE = torch.device('cuda')
+DEVICE = torch.device('cpu')
