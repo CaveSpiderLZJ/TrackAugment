@@ -110,7 +110,7 @@ class Model1(nn.Module):
     def __init__(self) -> None:
         super().__init__()
         feature_channels = 24
-        window_length = int(cf.WINDOW_DURATION * cf.FS_TRAIN)
+        window_length = int(cf.TRAIN_DURATION * cf.FS_TRAIN)
         self.conv1 = nn.Conv1d(in_channels=feature_channels, out_channels=20, kernel_size=1)
         self.conv2 = nn.Conv1d(in_channels=window_length, out_channels=20, kernel_size=1)
         self.conv3 = nn.Conv1d(in_channels=20, out_channels=20, kernel_size=1)
@@ -209,7 +209,7 @@ class Model4(nn.Module):
     def __init__(self) -> None:
         super().__init__()
         feature_channels = 24
-        window_length = int(cf.WINDOW_DURATION * cf.FS_TRAIN)
+        window_length = int(cf.TRAIN_DURATION * cf.FS_TRAIN)
         self.C, self.L = 24, 32
         self.conv1 = ConvBnAct(in_channels=feature_channels, out_channels=self.C, kernel_size=1)
         self.conv2 = ConvBnAct(in_channels=window_length, out_channels=self.C, kernel_size=1)
@@ -242,7 +242,7 @@ class Model5(nn.Module):
     def __init__(self) -> None:
         super().__init__()
         feature_channels = 24
-        window_length = int(cf.WINDOW_DURATION * cf.FS_TRAIN)
+        window_length = int(cf.TRAIN_DURATION * cf.FS_TRAIN)
         self.conv1 = ConvBnAct(in_channels=feature_channels, out_channels=20, kernel_size=3, padding=1)
         self.conv2 = ConvBnAct(in_channels=window_length, out_channels=20, kernel_size=3, padding=1)
         self.conv3 = ConvBnAct(in_channels=20, out_channels=20, kernel_size=3, padding=1)

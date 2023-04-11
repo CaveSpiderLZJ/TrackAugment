@@ -5,6 +5,7 @@ import tqdm
 import time
 import shutil
 import pickle
+import random
 import numpy as np
 from glob import glob
 from matplotlib import pyplot as plt
@@ -22,6 +23,11 @@ from data_process.record import Record
 from data_process.dataset import Dataset, DataLoader
 from train.model import *
 from train.feature import feature2
+
+
+def worker_init_fn(worker_id:int):
+    random.seed(cf.RAND_SEED + worker_id)
+    np.random.seed(cf.RAND_SEED + worker_id)
 
 
 def main():
@@ -63,7 +69,7 @@ def main():
     test_dataset = Dataset()
     
     # insert Shake, DoubleShake, Flip and DoubleFlip
-    print(f'### Insert Shake, DoubleShake, Filp and DoubleFlip.')
+    print(f'### Insert Shake, DoubleShake, Flip and DoubleFlip.')
     record_info = []
     for task_id, label in (('TK9fe2fbln', 3), ('TK5rsia9fw', 4), ('TKtvkgst8r', 5), ('TKie8k1h6r', 6)):
         for task in task_list['tasks']:
@@ -113,7 +119,7 @@ def main():
     # insert negative data
     print(f'### Insert Negative.')
     negative_batch = 100
-    W = int(cf.FS_PREPROCESS * cf.WINDOW_DURATION)
+    W = int(cf.FS_PREPROCESS * cf.CUT_DURATION)
     for i in tqdm.trange(int(np.ceil(len(train_negative_paths)/negative_batch))):
         negative_data = []
         for path in train_negative_paths[i*negative_batch:(i+1)*negative_batch]:
@@ -129,12 +135,12 @@ def main():
         negative_data = np.concatenate(negative_data, axis=0)
         test_dataset.insert_negativa_data(negative_data, label=0)
     
-    train_dataset.shuffle()
-    test_dataset.shuffle()
+    train_dataset.augment(method=cf.AUG_METHOD)
+    test_dataset.augment(method=None)
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size,
-        shuffle=True, num_workers=4, pin_memory=True)
+        shuffle=True, pin_memory=True, num_workers=0, worker_init_fn=worker_init_fn)
     test_dataloader = DataLoader(test_dataset, batch_size=batch_size,
-        shuffle=True, num_workers=4, pin_memory=True)
+        shuffle=True, pin_memory=True, num_workers=0, worker_init_fn=worker_init_fn)
     
     # utils
     if os.path.exists(model_save_dir): shutil.rmtree(model_save_dir)
@@ -183,7 +189,9 @@ def main():
                 scheduler.step()
                 optimizer.zero_grad()
             data, label = [], []
-            
+        
+        if cf.AUG_METHOD is not None:
+            train_dataloader.augment(method=cf.AUG_METHOD)
         train_loss /= len(train_dataloader)
         lr = optimizer.param_groups[0]['lr']
         train_log.append({"epoch": epoch, "lr": lr, "loss": train_loss})
@@ -212,7 +220,7 @@ def main():
                     for j in range(int(np.ceil(data.shape[0]/batch_size))):
                         output: torch.Tensor = model(data[j*batch_size:(j+1)*batch_size,:,:])
                         label_batch = label[j*batch_size:(j+1)*batch_size]
-                        test_loss: torch.Tensor = train_criterion(output, label_batch)
+                        test_loss: torch.Tensor = test_criterion(output, label_batch)
                         _, predicted = torch.max(output, dim=1)
                         c = (predicted == label_batch)
                         for k in range(len(label_batch)):
@@ -247,7 +255,9 @@ def main():
     
 
 if __name__ == '__main__':
+    random.seed(cf.RAND_SEED)
     np.random.seed(cf.RAND_SEED)
     torch.manual_seed(cf.RAND_SEED)
     fu.check_cwd()
     main()
+    
