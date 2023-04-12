@@ -32,7 +32,7 @@ USERS = ('lzj', 'lzj2', 'hz', 'xq', 'zyh', 'hyw', 'zxyx', 'crj', 'jjx', 'zz',
 CUT_DURATION: float = 2.5       # action duration after cutting (s)
 TRAIN_DURATION: float = 2.0     # action duration for training (s)
 RANDOM_SAMPLE_EN: bool = True   # whether to randomly sample action data from cut duration to train duration
-AUG_METHOD: str = 'dtw'          # in {None, 'classic', 'dtw'}
+AUG_METHOD: str = 'classic_on_track'          # in {None, 'classic', 'classic_on_track', 'dtw'}
 
 # train
 RAND_SEED = 0
