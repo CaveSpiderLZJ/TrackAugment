@@ -9,6 +9,7 @@ import pandas as pd
 from glob import glob
 from scipy import stats
 from scipy import interpolate as interp
+from scipy.spatial.transform import Rotation
 from mpl_toolkits import mplot3d
 from sklearn.manifold import TSNE
 from matplotlib import pyplot as plt
@@ -401,7 +402,6 @@ def visualize_filter(record:Record):
     plt.show()
     
     
-    
 def visualize_track_data(record):
     track_data = record.track_data
     center_pos = track_data['center_pos']
@@ -704,20 +704,64 @@ def visualize_dtw_offset():
         plt.subplot(3, 2, 6)
         for i in range(3): plt.plot(gyro2[:,i])
         plt.show()
+        
+        
+def visualize_scale_gyro(record:Record):
+    idx, s = 5, 1.2
+    cutted_imu_data = record.cutted_imu_data
+    acc = cutted_imu_data['acc'][idx,:,:]
+    gyro = cutted_imu_data['gyro'][idx,:,:]
+    scaled_acc = acc * s
+    scaled_gyro = gyro * s
+    
+    cutted_track_data = record.cutted_track_data
+    center_pos = cutted_track_data['center_pos'][idx,:,:]
+    marker_pos = cutted_track_data['marker_pos'][idx,:,:,:]
+    axes = aug.calc_local_axes(marker_pos)
+    track_acc = aug.track_to_acc(center_pos, axes, fs=cf.FS_PREPROCESS)
+    track_gyro = aug.track_to_gyro(axes, fs=cf.FS_PREPROCESS)
+    scaled_center_pos = center_pos * s
+    axes = aug.calc_local_axes(marker_pos)
+    q = axes.transpose(1, 2, 0)     # rotation matrix
+    delta_q = np.matmul(np.linalg.inv(q[0,:,:])[None,:,:], q)
+    scaled_rot_vec = Rotation.from_matrix(delta_q).as_rotvec() * s
+    scaled_axes = np.matmul(q[0:1,:,:], Rotation.from_rotvec(scaled_rot_vec).as_matrix()).transpose(2,0,1)
+    scaled_track_acc = aug.track_to_acc(scaled_center_pos, scaled_axes, fs=cf.FS_PREPROCESS)
+    scaled_track_gyro = aug.track_to_gyro(scaled_axes, fs=cf.FS_PREPROCESS)
+     
+    plt.subplot(2, 2, 1)
+    for i in range(3): plt.plot(acc[:,i], color='blue')
+    for i in range(3): plt.plot(scaled_acc[:,i], color='red')
+    plt.ylabel(f'Acc', fontsize=14)
+    plt.subplot(2, 2, 3)
+    for i in range(3): plt.plot(gyro[:,i], color='blue')
+    for i in range(3): plt.plot(scaled_gyro[:,i], color='red')
+    plt.ylabel(f'Gyro', fontsize=14)
+    plt.subplot(2, 2, 2)
+    for i in range(3): plt.plot(track_acc[:,i], color='blue')
+    for i in range(3): plt.plot(scaled_track_acc[:,i], color='red')
+    plt.ylabel(f'Track Acc', fontsize=14)
+    plt.subplot(2, 2, 4)
+    for i in range(3): plt.plot(track_gyro[:,i], color='blue')
+    for i in range(3): plt.plot(scaled_track_gyro[:,i], color='red')
+    plt.ylabel(f'Track Gyro', fontsize=14)
+    plt.show()
+    
+
     
     
 if __name__ == '__main__':
     np.random.seed(0)
     fu.check_cwd()
-    # task_list_id = 'TLnmdi15b8'
-    # task_id = 'TKtvkgst8r'
-    # subtask_id = 'ST1goi2xdj'
-    # record_id = 'RDntekjrpc'
-    # record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
-    # tic = time.perf_counter()
-    # record = Record(record_path, n_sample=20)
-    # toc = time.perf_counter()
-    # print(f'time: {(toc-tic)*1000:.3f} ms')
+    task_list_id = 'TLnmdi15b8'
+    task_id = 'TK9fe2fbln'
+    subtask_id = 'ST1fsnt2et'
+    record_id = 'RD4fova48r'
+    record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
+    tic = time.perf_counter()
+    record = Record(record_path, n_sample=20)
+    toc = time.perf_counter()
+    print(f'time: {(toc-tic)*1000:.3f} ms')
     
     
     # visualize_filter(record)
@@ -727,4 +771,6 @@ if __name__ == '__main__':
     # visualize_tsne()
     # visualize_data_distribution()
     # visualize_dtw_augment(record)
-    visualize_dtw_offset()
+    # visualize_dtw_offset()
+    visualize_scale_gyro(record)
+    

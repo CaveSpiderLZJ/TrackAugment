@@ -221,16 +221,28 @@ def rotate(data:np.ndarray, matrix:np.ndarray) -> np.ndarray:
     return np.matmul(matrix, data.transpose(schema)).transpose(schema)
 
 
-def zoom(data:np.ndarray, axis:int, low:float=0.9, high:float=1.0):
+def zoom_params(low:float=0.9, high:float=1.0) -> float:
+    ''' Generate random params that Zoom needs.
+    args: see zoom().
+    '''
+    s = np.random.rand() * (high-low) + low
+    return s
+
+
+def zoom(data:np.ndarray, axis:int, low:float=0.9,
+    high:float=1.0, params:float=None) -> np.ndarray:
     ''' Zoom data in time axis, by a random factor s in [low, high].
     args:
         data: np.ndarray, of any shape, data to be augmented.
         axis: int, the index of the time series axis.
         low: float, the lower bound of the range of s, default = 0.9.
         high: float, the higher bound of the range of s, default = 1.0.
+        params: float, if not None, use the params to augment data.
     '''
     N = data.shape[axis]
-    s = np.random.rand() * (high-low) + low
+    if params is not None:
+        s = params
+    else: s = np.random.rand() * (high-low) + low
     start = 0.5 * (1-s) * (N-1)
     end = start + s * (N-1)
     t = np.linspace(start, end, num=N)
@@ -239,14 +251,26 @@ def zoom(data:np.ndarray, axis:int, low:float=0.9, high:float=1.0):
     return f(t)
 
 
-def scale(data:np.ndarray, std:float=0.2, low:float=0.0, high:float=2.0) -> np.ndarray:
+def scale_params(std:float=0.2, low:float=0.0, high:float=2.0) -> float:
+    ''' Generate random params that Scale needs.
+    args: see scale().
+    '''
+    s = np.clip(1.0 + np.random.randn() * std, a_min=low, a_max=high)
+    return s
+
+
+def scale(data:np.ndarray, std:float=0.2, low:float=0.0,
+    high:float=2.0, params:float=None) -> np.ndarray:
     ''' Scale the data by a random factor s ~ N(1, std^2).
     args:
         data: np.ndarray, with any shape and dtype.
         std: float, the std deviation of the scaling factor.
         low and high: float, the lower and higher bounds of the random factor.
+        params: float, if not None, use the params to augment data.
     '''
-    s = np.clip(1.0 + np.random.randn() * std, a_min=low, a_max=high)
+    if params is not None:
+        s = params
+    else: s = np.clip(1.0 + np.random.randn() * std, a_min=low, a_max=high)
     return data * s
 
 
@@ -290,8 +314,18 @@ def magnitude_warp(data:np.ndarray, axis:int, n_knots:int,
     return data * ys[tuple(slices)]
 
 
+def time_warp_params(n_knots:int=4, std:float=0.05, low:float=0.0, high:float=2.0) -> tuple:
+    ''' Generate random params that Time Warp needs.
+    args: see time_warp().
+    '''
+    x_knots = np.linspace(0, 1, num=n_knots, endpoint=True, dtype=np.float32)
+    y_knots = x_knots * (1.0 + np.random.randn(n_knots) * std).clip(low, high)
+    y_knots[0], y_knots[-1] = 0.0, 1.0
+    return x_knots, y_knots
+    
+
 def time_warp(data:np.ndarray, axis:int, n_knots:int=4, std:float=0.05,
-        low:float=0.0, high:float=2.0) -> np.ndarray:
+        low:float=0.0, high:float=2.0, params:tuple=None) -> np.ndarray:
     ''' Warp the timestamps by a smooth curve. Unlike magnitude warping,
         time warping always preserves the timestamps at the start and end.
     args:
@@ -303,11 +337,15 @@ def time_warp(data:np.ndarray, axis:int, n_knots:int=4, std:float=0.05,
             if n_knots == 2, nothing will happen.
         std: float, the standard deviations of knots.
         low and high: the lower and higher bounds of the random factors.
+        params: tuple, if not None, use the params to augment data.
     '''
     N = data.shape[axis]
-    x_knots = np.linspace(0, 1, num=n_knots, endpoint=True, dtype=np.float32)
-    y_knots = x_knots * (1.0 + np.random.randn(n_knots) * std).clip(low, high)
-    y_knots[0], y_knots[-1] = 0.0, 1.0
+    if params is not None:
+        x_knots, y_knots = params
+    else:
+        x_knots = np.linspace(0, 1, num=n_knots, endpoint=True, dtype=np.float32)
+        y_knots = x_knots * (1.0 + np.random.randn(n_knots) * std).clip(low, high)
+        y_knots[0], y_knots[-1] = 0.0, 1.0
     tck = interp.splrep(x_knots, y_knots, s=0, per=False)
     xs = np.linspace(0, 1, num=N, endpoint=True, dtype=np.float32)
     t = (N-1) * interp.splev(xs, tck, der=0)
@@ -370,6 +408,31 @@ def classic_augment(data:np.ndarray, axis:int) -> np.ndarray:
     if strategies in (4, 5, 6, 7): data = time_warp(data, axis=axis)
     return data
 
+
+def classic_augment_on_track(center_pos:np.ndarray, marker_pos:np.ndarray) -> np.ndarray:
+    ''' Combine Zoom, Scale and Time Warping on track data and conter to imu data.
+    '''
+    axes = calc_local_axes(marker_pos)
+    strategies = np.random.randint(1,8)
+    if strategies in (1, 3, 5, 7):
+        params = zoom_params()
+        center_pos = zoom(center_pos, axis=0, params=params)
+        axes = zoom(axes, axis=1, params=params)
+    if strategies in (2, 3, 6, 7):
+        params = scale_params()
+        center_pos = scale(center_pos, params=params)
+        q = axes.transpose(1, 2, 0)     # rotation matrix
+        delta_q = np.matmul(np.linalg.inv(q[0,:,:])[None,:,:], q)
+        scaled_rot_vec = scale(Rotation.from_matrix(delta_q).as_rotvec(), params=params)
+        axes = np.matmul(q[0:1,:,:], Rotation.from_rotvec(scaled_rot_vec).as_matrix()).transpose(2,0,1)
+    if strategies in (4, 5, 6, 7):
+        params = time_warp_params()
+        center_pos = time_warp(center_pos, axis=0, params=params)
+        axes = time_warp(axes, axis=1, params=params)
+    acc = track_to_acc(center_pos, axes, fs=cf.FS_PREPROCESS)
+    gyro = track_to_gyro(axes, fs=cf.FS_PREPROCESS)
+    return np.concatenate([acc, gyro], axis=1)
+    
 
 if __name__ == '__main__':
     data1 = np.sin(np.linspace(0, 4*np.pi, num=50))
