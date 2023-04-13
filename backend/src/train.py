@@ -199,7 +199,7 @@ def main():
         if (epoch+1) % log_steps == 0:
             print(f'epoch: {epoch}, lr: {lr:.3e}, loss: {train_loss:.3e}')
             logger.add_scalar('Learning Rate', lr, epoch)
-            logger.add_scalar('Loss', train_loss, epoch)
+            logger.add_scalar('Train Loss', train_loss, epoch)
             
         if (epoch+1) % eval_steps == 0:  # test model on testing dataset
             model.eval()
@@ -240,14 +240,21 @@ def main():
                 max_acc = acc
                 torch.save(model.state_dict(), os.path.join(model_save_dir, 'best.model'))
             torch.save(model.state_dict(), os.path.join(model_save_dir, f'{epoch}.model'))
-            print(f'+{"-"*71}+')
+            fpr = np.sum(matrix[0,1:]) / np.sum(matrix[0,:])
+            logger.add_scalar('False Positive Rate', fpr, epoch)
+            acc_positive = np.sum(np.diag(matrix)[1:] / np.sum(matrix[1:,:]))
+            logger.add_scalar('Accuracy of Positive', acc_positive, epoch)
+            print(f'+{"-"*79}+')
             for i in range(n_classes):
                 row = matrix[i,:].copy()
                 row = 100 * row / np.sum(row)
-                print(f'| Accuracy of {class_names[i]:12s}: {row[i]:.1f} % | ', end='')
-                print(' '.join([f'{item:.1f}'.rjust(4) for item in row]) + ' |')
+                print(f'| Accuracy of {class_names[i]:12s}: {row[i]:.2f} % | ', end='')
+                print(' '.join([f'{item:.2f}'.rjust(5) for item in row]) + ' |')
                 logger.add_scalar(f'Accuracy of {class_names[i]}', row[i], epoch)
-            print(f'+{"-"*71}+')
+            print(f'+{"-"*79}+')
+            print(f'| False Positive Rate     : {f"{100*fpr:.3f}".rjust(6)} %' + ' '*44 + '|')
+            print(f'| Accuracy of Positive    : {f"{100*acc_positive:.3f}".rjust(6)} %' + ' '*44 + '|')
+            print(f'+{"-"*79}+')
             logger.add_scalar('Accuracy', acc, epoch)
     toc = time.perf_counter()
     print(f'Genaral acc: {(100*np.mean(accs[-10:])):.1f} %')
