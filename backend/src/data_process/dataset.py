@@ -155,6 +155,17 @@ class Dataset(torch.utils.data.Dataset):
                     imu_list.append(imu[None,:,:])
                 augmented_imu_data.append(np.concatenate(imu_list, axis=0))
                 augmented_labels.append(labels)
+        elif method == 'classic_on_track':
+            for center_pos_batch, marker_pos_batch, labels in zip(self.raw_track_data['center_pos'],
+                self.raw_track_data['marker_pos'], self.raw_positive_labels):
+                N = labels.shape[0]
+                imu_list = []
+                for i in range(N):
+                    imu = aug.classic_augment_on_track(
+                        center_pos_batch[i,:,:], marker_pos_batch[i,:,:,:])
+                    imu_list.append(imu[None,:,:])
+                augmented_imu_data.append(np.concatenate(imu_list, axis=0))
+                augmented_labels.append(labels)
         elif method == 'dtw':       # dtw based augmentation on track data
             for center_pos, marker_pos, labels in zip(self.raw_track_data['center_pos'],
                 self.raw_track_data['marker_pos'], self.raw_positive_labels):
