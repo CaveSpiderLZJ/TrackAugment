@@ -55,7 +55,10 @@ def main():
     np.random.shuffle(users)
     train_users = set(users[:cf.N_TRAIN_USERS])
     test_users = set(users[cf.N_TRAIN_USERS:cf.N_TRAIN_USERS+cf.N_TEST_USERS])
-    days = list(range(1,76))
+    # remove left hand users
+    if 'lby' in train_users: train_users.remove('lby')
+    if 'lby' in test_users: test_users.remove('lby')
+    days = list(range(1,75))
     np.random.shuffle(days)
     train_days = days[:cf.N_TRAIN_DAYS]
     test_days = days[cf.N_TRAIN_DAYS:cf.N_TRAIN_DAYS+cf.N_TEST_DAYS]
