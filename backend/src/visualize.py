@@ -707,16 +707,17 @@ def visualize_dtw_offset():
         
         
 def visualize_scale_gyro(record:Record):
-    idx, s = 5, 1.2
+    idx, s = 5, 1.5
+    start, end = 100, 400
     cutted_imu_data = record.cutted_imu_data
-    acc = cutted_imu_data['acc'][idx,:,:]
-    gyro = cutted_imu_data['gyro'][idx,:,:]
+    acc = cutted_imu_data['acc'][idx,start:end,:]
+    gyro = cutted_imu_data['gyro'][idx,start:end,:]
     scaled_acc = acc * s
     scaled_gyro = gyro * s
     
     cutted_track_data = record.cutted_track_data
-    center_pos = cutted_track_data['center_pos'][idx,:,:]
-    marker_pos = cutted_track_data['marker_pos'][idx,:,:,:]
+    center_pos = cutted_track_data['center_pos'][idx,start:end,:]
+    marker_pos = cutted_track_data['marker_pos'][idx,:,start:end,:]
     axes = aug.calc_local_axes(marker_pos)
     track_acc = aug.track_to_acc(center_pos, axes, fs=cf.FS_PREPROCESS)
     track_gyro = aug.track_to_gyro(axes, fs=cf.FS_PREPROCESS)
@@ -746,9 +747,7 @@ def visualize_scale_gyro(record:Record):
     for i in range(3): plt.plot(scaled_track_gyro[:,i], color='red')
     plt.ylabel(f'Track Gyro', fontsize=14)
     plt.show()
-    
 
-    
     
 if __name__ == '__main__':
     np.random.seed(0)
