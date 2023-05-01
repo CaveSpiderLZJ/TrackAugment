@@ -145,8 +145,8 @@ def build_dataloader_pilot_move() -> Tuple[DataLoader, DataLoader]:
     assert task_list is not None
     
     # build the dataset and dataloader
-    train_users = ['lzj']
-    test_users = ['lzj2']
+    train_users = ['lzj2', 'lzj3', 'lzj4', 'lzj5', 'lzj6', 'lzj7', 'lzj8']
+    test_users = ['lzj1']
     train_days = [1]
     test_days = [2]
     train_negative_paths = []
