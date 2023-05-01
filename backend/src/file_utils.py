@@ -141,8 +141,8 @@ def load_task_list_with_users(task_list_id:int):
     return task_list
 
 
-def append_record_list(task_list_id, task_id, subtask_id, user_name, record_id, dataset_version='0.2'):
-    record_list_path = get_record_list_path(task_list_id, task_id, subtask_id, dataset_version)
+def append_record_list(task_list_id, task_id, subtask_id, user_name, record_id):
+    record_list_path = get_record_list_path(task_list_id, task_id, subtask_id)
     if not os.path.exists(record_list_path):
         save_json([], record_list_path)
     record_list:list = json.load(open(record_list_path, 'r'))

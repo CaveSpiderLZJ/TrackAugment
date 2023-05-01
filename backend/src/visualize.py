@@ -148,15 +148,13 @@ def visualize_markers(record:Record) -> None:
     plt.show()
     
 
-def visualize_3d_track(record:Record) -> None:
-    '''
-    '''
+def visualize_augmented_3d_track(record:Record) -> None:
     # prepare imu data
     imu_data = record.imu_data
     start_imu, end_imu = 3000, 3500
     acc = imu_data['acc'][start_imu:end_imu,:]
     acc = aug.down_sample_by_step(acc, axis=0, step=5)
-    augmented_acc = aug.jitter(acc, std=1)
+    # augmented_acc = aug.jitter(acc, std=1)
     # augmented_acc = aug.scale(acc, 0.05)
     augmented_acc = aug.time_warp(acc, axis=0, n_knots=4, std=0.05)
     # augmented_acc = aug.magnitude_warp(acc, axis=0, n_knots=4, std=0.1, preserve_bound=True)
@@ -399,15 +397,6 @@ def visualize_filter(record:Record):
     plt.plot(filtered_norm, color='red')
     for i in range(21):
         plt.plot([i*600, i*600], [-10, 10], color='black')
-    plt.show()
-    
-    
-def visualize_track_data(record):
-    track_data = record.track_data
-    center_pos = track_data['center_pos']
-    print(center_pos.shape)
-    for i in range(3):
-        plt.plot(center_pos[:,i])
     plt.show()
     
     
@@ -706,6 +695,9 @@ def visualize_dtw_offset():
         plt.show()
         
         
+
+
+        
 def visualize_scale_gyro(record:Record):
     idx, s = 5, 1.5
     start, end = 100, 400
@@ -747,8 +739,138 @@ def visualize_scale_gyro(record:Record):
     for i in range(3): plt.plot(scaled_track_gyro[:,i], color='red')
     plt.ylabel(f'Track Gyro', fontsize=14)
     plt.show()
-
     
+    
+def visualize_3d_track_by_subtask():
+    ''' Visulize the 3d track orientations of different subtasks.
+    '''
+    task_list_id = f'TLnmdi15b8'
+    task_list = fu.load_task_list_with_users(task_list_id)
+    task_id = f'TK9fe2fbln'
+    user_name = f'zxyx'
+    subtask_ids = [f'ST4rcuu4mk', f'ST1d4ykyui']
+    rot_matrix = np.array([[-1,0,0],[0,0,1],[0,1,0]], dtype=np.float32)
+    rot_x_90 = Rotation.from_rotvec(np.array([0.5*np.pi,0,0])).as_matrix()
+    colors = ['blue', 'red']
+    ax = plt.axes(projection='3d')
+    l1, l2 = None, None
+    
+    for task in task_list['tasks']:
+        if task['id'] == task_id: break
+    assert task['id'] == task_id
+    for subtask_id, color in zip(subtask_ids, colors):
+        for subtask in task['subtasks']:
+            if subtask['id'] == subtask_id: break
+        assert subtask['id'] == subtask_id
+        record_id = subtask['record_dict'][user_name]
+        record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
+        record = Record(record_path, n_sample=subtask['times'])
+        center_pos = record.cutted_track_data['center_pos'][:,150:350,:]
+        # plot track
+        for segment in center_pos:
+            segment = np.matmul(rot_matrix, segment.T).T
+            # if subtask_id == 'ST4rcuu4mk':
+            #     segment = np.matmul(rot_x_90, segment.T).T
+            segment -= np.mean(segment, axis=0)[None,:]
+            l, = ax.plot(segment[:,0], segment[:,1], segment[:,2], color=color)
+            if subtask_id == 'ST4rcuu4mk':
+                if l1 is None: l1 = l
+            elif l2 is None: l2 = l
+        # set equal box aspect
+        x_scale = np.abs(np.diff(ax.get_xlim()))[0]
+        y_scale = np.abs(np.diff(ax.get_ylim()))[0]
+        z_scale = np.abs(np.diff(ax.get_zlim()))[0]
+        ax.xaxis.set_major_locator(MultipleLocator(0.1))
+        ax.yaxis.set_major_locator(MultipleLocator(0.1))
+        ax.zaxis.set_major_locator(MultipleLocator(0.1))
+        ax.set_box_aspect((x_scale,y_scale,z_scale))
+        ax.set_xlabel('X'); ax.set_ylabel('Y'); ax.set_zlabel('Z')
+    plt.legend(handles=[l1, l2], labels=['StandUp', 'LieDown'])
+    plt.title(f'StandUp and LieDown of {user_name}')
+    plt.show()
+    
+    
+def visualize_rotated_imu_signal(record:Record):
+    ''' Rotate action track and convert to imu. Visualize the imu signal difference.
+    '''
+    track_data = record.cutted_track_data
+    center_pos = track_data['center_pos'][5,:,:]
+    marker_pos = track_data['marker_pos'][5,:,:,:]
+    rot = Rotation.from_rotvec(np.array([-0.5*np.pi,0,0])).as_matrix()
+    rot_center_pos = np.matmul(rot, center_pos.T).T
+    rot_marker_pos = np.empty_like(marker_pos)
+    for i in range(6): rot_marker_pos[i,:,:] = np.matmul(rot, marker_pos[i,:,:].T).T
+    axes = aug.calc_local_axes(marker_pos)
+    acc = aug.track_to_acc(center_pos, axes, fs=cf.FS_PREPROCESS)
+    gyro = aug.track_to_gyro(axes, fs=cf.FS_PREPROCESS)
+    rot_axes = aug.calc_local_axes(rot_marker_pos)
+    rot_acc = aug.track_to_acc(rot_center_pos, rot_axes, fs=cf.FS_PREPROCESS)
+    rot_gyro = aug.track_to_gyro(rot_axes, fs=cf.FS_PREPROCESS)
+    plt.subplot(2, 1, 1)
+    for i in range(3): plt.plot(acc[:,i], color='b')
+    for i in range(3): plt.plot(rot_acc[:,i], color='r')
+    plt.ylabel('Acc', fontsize=14)
+    plt.subplot(2, 1, 2)
+    for i in range(3): plt.plot(gyro[:,i], color='b')
+    for i in range(3): plt.plot(rot_gyro[:,i], color='r')
+    plt.ylabel('Gyro', fontsize=14)
+    plt.show()
+    
+    
+def visualize_move():
+    ''' Visualize Move in different distance and speed.
+    '''
+    user_name, idx = 'lzj2', 10
+    task_list = fu.load_task_list_with_users('TL3wni1oq3')
+    for i, task_name in enumerate(('Move10cm', 'Move20cm', 'Move30cm', 'Move40cm', 'Move50cm')):
+        for task in task_list['tasks']:
+            if task['name'] == task_name: break
+        assert task['name'] == task_name
+        for j, subtask_name in enumerate(('Fast', 'Medium', 'Slow')):
+            for subtask in task['subtasks']:
+                if subtask['name'] == subtask_name: break
+            assert subtask['name'] == subtask_name
+            record_id = subtask['record_dict'][user_name]
+            record_path = fu.get_record_path(task_list['id'], task['id'], subtask['id'], record_id)
+            record = Record(record_path, subtask['times'])
+            imu = record.cutted_imu_data
+            acc = imu['acc'][idx,:,:]
+            plt.subplot(5, 3, i*3+j+1)
+            for k in range(3): plt.plot(acc[:,k])
+            plt.ylim(-25, 25)
+            plt.title(f'{task_name}.{subtask_name}')
+    plt.show()
+    
+    
+def visualize_move_distance():
+    ''' Visualize the actual move distance of the action samples.
+    '''
+    task_list = fu.load_task_list_with_users('TL3wni1oq3')
+    task_names = ['Move10cm', 'Move20cm', 'Move30cm', 'Move40cm', 'Move50cm']
+    distance = {task_name: [] for task_name in task_names}
+    for task_name in task_names:
+        for task in task_list['tasks']:
+            if task['name'] == task_name: break
+        assert task['name'] == task_name
+        record_paths = glob(f'../data/record/{task_list["id"]}/{task["id"]}/ST*/RD*')
+        for record_path in record_paths:
+            record = Record(record_path, n_sample=20)
+            track_data = record.cutted_track_data
+            center_pos = track_data['center_pos']
+            for i in range(center_pos.shape[0]):
+                dis = np.max(center_pos[i,:,0]) - np.min(center_pos[i,:,0])
+                distance[task_name].append(dis)
+    for task_name in task_names:
+        dis_arr = distance[task_name]
+        print(f'{task_name}: M = {np.mean(dis_arr):.3f}, SD = {np.std(dis_arr,ddof=1):.3f}')
+    plt.violinplot([distance[task_name] for task_name in task_names], positions=range(5))
+    plt.xticks(ticks=range(5), labels=task_names, fontsize=14)
+    plt.grid(axis='both', linestyle='--')
+    plt.ylabel('Distance (m)', fontsize=14)
+    plt.title('Moving distance distributions', fontsize=16)
+    plt.show()
+    
+        
 if __name__ == '__main__':
     np.random.seed(0)
     fu.check_cwd()
@@ -771,5 +893,9 @@ if __name__ == '__main__':
     # visualize_data_distribution()
     # visualize_dtw_augment(record)
     # visualize_dtw_offset()
-    visualize_scale_gyro(record)
+    # visualize_scale_gyro(record)
+    # visualize_3d_track_by_subtask()
+    # visualize_rotated_imu_signal(record)
+    # visualize_move()
+    visualize_move_distance()
     

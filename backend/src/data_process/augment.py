@@ -402,9 +402,9 @@ def classic_augment(data:np.ndarray, axis:int) -> np.ndarray:
         data: np.ndarray, of any shape, data to be augmented.
         axis: int, the time series axis.
     '''
-    strategies = np.random.randint(1,8)
+    strategies = np.random.randint(0,8)
     if strategies in (1, 3, 5, 7): data = zoom(data, axis=axis)
-    if strategies in (2, 3, 6, 7): data = scale(data)
+    if strategies in (2, 3, 6, 7): data = scale(data, std=0.025) ### for Pilot Move
     if strategies in (4, 5, 6, 7): data = time_warp(data, axis=axis)
     return data
 
@@ -413,13 +413,13 @@ def classic_augment_on_track(center_pos:np.ndarray, marker_pos:np.ndarray) -> np
     ''' Combine Zoom, Scale and Time Warping on track data and conter to imu data.
     '''
     axes = calc_local_axes(marker_pos)
-    strategies = np.random.randint(1,8)
+    strategies = np.random.randint(0,8)
     if strategies in (1, 3, 5, 7):
         params = zoom_params()
         center_pos = zoom(center_pos, axis=0, params=params)
         axes = zoom(axes, axis=1, params=params)
     if strategies in (2, 3, 6, 7):
-        params = scale_params()
+        params = scale_params(std=0.025) ### for Pilot Move
         center_pos = scale(center_pos, params=params)
         q = axes.transpose(1, 2, 0)     # rotation matrix
         delta_q = np.matmul(np.linalg.inv(q[0,:,:])[None,:,:], q)

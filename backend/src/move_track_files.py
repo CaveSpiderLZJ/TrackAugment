@@ -13,7 +13,7 @@ from data_process import augment as aug
 
 RECORD_ROOT = '../data/record'
 TRACK_ROOT = '../data/track'
-TASK_LIST_ID = 'TLnmdi15b8'
+TASK_LIST_ID = 'TL3wni1oq3'
 
 
 def check_track_file_names():
@@ -40,46 +40,33 @@ def check_track_file_names():
         
 def copy_track_files():
     # get task list
-    root_list = fu.load_root_list_info()
-    for task_list in root_list['tasklists']:
-        if task_list['id'] == TASK_LIST_ID:
-            break
-    # iterate track files
-    track_file_paths: List[str] = glob(f'{TRACK_ROOT}/*.csv')
-    record_set = set()
+    task_list = fu.load_task_list_with_users(TASK_LIST_ID)
+    task_name_map = {'M10': 'Move10cm', 'M20': 'Move20cm', 'M30': 'Move30cm', 'M40': 'Move40cm', 'M50': 'Move50cm'}
+    subtask_name_map = {'F': 'Fast', 'M': 'Medium', 'S': 'Slow'}
+    # iterate track file paths
+    track_file_paths = glob(f'{TRACK_ROOT}/*.csv')
     for path in track_file_paths:
         name = path.split('/')[-1].split('.')[0]
         user_name, task_name, subtask_name, _ = name.split('_')
-        task_id, subtask_id, record_id = None, None, None
+        task_name = task_name_map[task_name]
+        subtask_name = subtask_name_map[subtask_name]
         for task in task_list['tasks']:
-            if task['name'] == task_name:
-                task_id = task['id']
-                break
-        assert task_id != None
+            if task['name'] == task_name: break
+        assert task['name'] == task_name
         for subtask in task['subtasks']:
-            if subtask['name'] == subtask_name:
-                subtask_id = subtask['id']
-                break
-        assert subtask_id != None
-        record_list = json.load(open(f'{RECORD_ROOT}/{TASK_LIST_ID}/{task_id}/{subtask_id}/recordlist.json', 'r'))
-        for record in record_list:
-            if record['user_name'] == user_name:
-                record_id = record['record_id']
-                record_set.add(record_id)
-                break
-        if record_id == None:
-            print(f'Record id not found: {path}, {task_id}, {subtask_id}')
-            continue
-        dst = f'{RECORD_ROOT}/{TASK_LIST_ID}/{task_id}/{subtask_id}/{record_id}'
-        if not os.path.exists(dst):
-            print(f'Dst path not exist: {path}')
-            continue
-        shutil.copy(path, dst)
-        print(f'Success: {path}')
+            if subtask['name'] == subtask_name: break
+        assert subtask['name'] == subtask_name
+        record_dict = subtask['record_dict']
+        if user_name in record_dict:
+            record_id = record_dict[user_name]
+            record_path = fu.get_record_path(TASK_LIST_ID, task['id'], subtask['id'], record_id)
+            shutil.copy(path, record_path)
+            print(f'Success: {path}')
+        else: print(f'Dst path not exist: {path}')
         
         
 def check_record_files():
-    task_ids = ['TK7t3ql6jb', 'TK9fe2fbln', 'TK5rsia9fw', 'TKtvkgst8r', 'TKie8k1h6r']
+    task_ids = ['TK6qxanwm7', 'TKcgnu2c20', 'TKp59cxeeh', 'TKqqx4moyj', 'TKsql1b33x']
     for task_id in task_ids:
         record_paths = glob(f'{RECORD_ROOT}/{TASK_LIST_ID}/{task_id}/ST*/RD*')
         for record_path in record_paths:
