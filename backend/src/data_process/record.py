@@ -192,7 +192,7 @@ class Record:
         gyro = imu_data['gyro']
         window_length = int(cf.CUT_DURATION * cf.FS_PREPROCESS)
         cutter = PeakCutter(self.n_sample, window_length, noise=0,
-            fs=cf.FS_PREPROCESS, fs_stop=0.005*cf.FS_PREPROCESS)
+            fs=cf.FS_PREPROCESS, fs_stop=0.003*cf.FS_PREPROCESS)
         # discard the first sample
         cut_ranges = cutter.cut_range(gyro)
         # cut track and imu data
