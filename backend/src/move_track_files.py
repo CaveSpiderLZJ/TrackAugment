@@ -56,13 +56,13 @@ def copy_track_files():
         for subtask in task['subtasks']:
             if subtask['name'] == subtask_name: break
         assert subtask['name'] == subtask_name
-        record_id = subtask['record_dict'][user_name]
-        record_path = fu.get_record_path(TASK_LIST_ID, task['id'], subtask['id'], record_id)
-        if not os.path.exists(record_path):
-            print(f'Dst path not exist: {path}')
-            continue
-        shutil.copy(path, record_path)
-        print(f'Success: {path}')
+        record_dict = subtask['record_dict']
+        if user_name in record_dict:
+            record_id = record_dict[user_name]
+            record_path = fu.get_record_path(TASK_LIST_ID, task['id'], subtask['id'], record_id)
+            shutil.copy(path, record_path)
+            print(f'Success: {path}')
+        else: print(f'Dst path not exist: {path}')
         
         
 def check_record_files():

@@ -249,7 +249,7 @@ def main():
     
     # train process
     max_acc = -1.0
-    train_log, accs = [], []
+    train_log, accs, matrices = [], [], []
     optimizer.zero_grad()
     tic = time.perf_counter()
     
@@ -318,6 +318,7 @@ def main():
             test_loss /= len(test_dataloader)
             logger.add_scalar("Test Loss", test_loss, epoch)
             model.train()
+            matrices.append(matrix)
             acc = np.diag(matrix).sum() / matrix.sum()
             accs.append(acc)
             if acc > max_acc:
@@ -326,8 +327,8 @@ def main():
             torch.save(model.state_dict(), os.path.join(model_save_dir, f'{epoch}.model'))
             fpr = np.sum(matrix[0,1:]) / np.sum(matrix[0,:])
             logger.add_scalar('False Positive Rate', fpr, epoch)
-            acc_positive = np.sum(np.diag(matrix)[1:] / np.sum(matrix[1:,:]))
-            logger.add_scalar('Accuracy of Positive', acc_positive, epoch)
+            recall = np.sum(np.diag(matrix)[1:] / np.sum(matrix[1:,:]))
+            logger.add_scalar('Accuracy of Positive', recall, epoch)
             print(f'+{"-"*79}+')
             for i in range(n_classes):
                 row = matrix[i,:].copy()
@@ -337,11 +338,22 @@ def main():
                 logger.add_scalar(f'Accuracy of {class_names[i]}', row[i], epoch)
             print(f'+{"-"*79}+')
             print(f'| False Positive Rate     : {f"{100*fpr:.3f}".rjust(6)} %' + ' '*44 + '|')
-            print(f'| Accuracy of Positive    : {f"{100*acc_positive:.3f}".rjust(6)} %' + ' '*44 + '|')
+            print(f'| Recall                  : {f"{100*recall:.3f}".rjust(6)} %' + ' '*44 + '|')
             print(f'+{"-"*79}+')
             logger.add_scalar('Accuracy', acc, epoch)
     toc = time.perf_counter()
-    print(f'Genaral acc: {(100*np.mean(accs[-10:])):.1f} %')
+    general_matrix = np.mean(matrices[-4:], axis=0)
+    print(f'General matrix:')
+    for i in range(n_classes):
+        row = general_matrix[i,:].copy()
+        row = 100 * row / np.sum(row)
+        print(f'    Accuracy of {class_names[i]:12s}: {row[i]:.2f} % | ', end='')
+        print(' '.join([f'{item:.2f}'.rjust(5) for item in row]))
+    fpr = np.sum(general_matrix[0,1:]) / np.sum(general_matrix[0,:])
+    recall = np.sum(np.diag(general_matrix)[1:] / np.sum(general_matrix[1:,:]))
+    print(f'General FPR: {100*fpr:.3f} %')
+    print(f'General recall: {100*recall:.3f} %')
+    print(f'General acc: {(100*np.mean(accs[-4:])):.1f} %')
     print(f'Training time: {toc-tic:.1f} s')
     
 

@@ -860,6 +860,9 @@ def visualize_move_distance():
             for i in range(center_pos.shape[0]):
                 dis = np.max(center_pos[i,:,0]) - np.min(center_pos[i,:,0])
                 distance[task_name].append(dis)
+    for task_name in task_names:
+        dis_arr = distance[task_name]
+        print(f'{task_name}: M = {np.mean(dis_arr):.3f}, SD = {np.std(dis_arr,ddof=1):.3f}')
     plt.violinplot([distance[task_name] for task_name in task_names], positions=range(5))
     plt.xticks(ticks=range(5), labels=task_names, fontsize=14)
     plt.grid(axis='both', linestyle='--')
