@@ -695,8 +695,6 @@ def visualize_dtw_offset():
         plt.show()
         
         
-
-
         
 def visualize_scale_gyro(record:Record):
     idx, s = 5, 1.5
@@ -874,10 +872,10 @@ def visualize_move_distance():
 if __name__ == '__main__':
     np.random.seed(0)
     fu.check_cwd()
-    task_list_id = 'TLnmdi15b8'
-    task_id = 'TK9fe2fbln'
-    subtask_id = 'ST1fsnt2et'
-    record_id = 'RD4fova48r'
+    task_list_id = 'TL3wni1oq3'
+    task_id = 'TKqqx4moyj'
+    subtask_id = 'STdizve3j2'
+    record_id = 'RDcv4ja8dr'
     record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
     tic = time.perf_counter()
     record = Record(record_path, n_sample=20)
@@ -885,7 +883,7 @@ if __name__ == '__main__':
     print(f'time: {(toc-tic)*1000:.3f} ms')
     
     
-    # visualize_filter(record)
+    visualize_filter(record)
     # visualize_error()
     # visualize_clean_mask()
     # visualize_cleaned_negative_data()
@@ -897,5 +895,5 @@ if __name__ == '__main__':
     # visualize_3d_track_by_subtask()
     # visualize_rotated_imu_signal(record)
     # visualize_move()
-    visualize_move_distance()
+    # visualize_move_distance()
     
