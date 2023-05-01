@@ -189,6 +189,7 @@ class Dataset(torch.utils.data.Dataset):
                 augmented_imu_data.append(np.concatenate(imu_list, axis=0))
                 augmented_labels.append(labels)
         else:                       # no augmentation, copy imu data directly
+            assert method is None
             for acc, gyro, labels in zip(self.raw_imu_data['acc'],
                 self.raw_imu_data['gyro'], self.raw_positive_labels):
                 augmented_imu_data.append(np.concatenate([acc, gyro], axis=2))
