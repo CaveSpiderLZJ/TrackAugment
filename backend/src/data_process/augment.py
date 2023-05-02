@@ -412,6 +412,8 @@ def classic_augment(data:np.ndarray, axis:int) -> np.ndarray:
 def classic_augment_on_track(center_pos:np.ndarray, marker_pos:np.ndarray) -> np.ndarray:
     ''' Combine Zoom, Scale and Time Warping on track data and conter to imu data.
     '''
+    
+    ''' compelete algorithm
     axes = calc_local_axes(marker_pos)
     strategies = np.random.randint(0,8)
     if strategies in (1, 3, 5, 7):
@@ -429,6 +431,16 @@ def classic_augment_on_track(center_pos:np.ndarray, marker_pos:np.ndarray) -> np
         params = time_warp_params()
         center_pos = time_warp(center_pos, axis=0, params=params)
         axes = time_warp(axes, axis=1, params=params)
+    acc = track_to_acc(center_pos, axes, fs=cf.FS_PREPROCESS)
+    gyro = track_to_gyro(axes, fs=cf.FS_PREPROCESS)
+    return np.concatenate([acc, gyro], axis=1)
+    '''
+    
+    # test zoom
+    axes = calc_local_axes(marker_pos)
+    params = zoom_params(low=0.82, high=1.0)
+    center_pos = zoom(center_pos, axis=0, params=params)
+    axes = zoom(axes, axis=1, params=params)
     acc = track_to_acc(center_pos, axes, fs=cf.FS_PREPROCESS)
     gyro = track_to_gyro(axes, fs=cf.FS_PREPROCESS)
     return np.concatenate([acc, gyro], axis=1)
