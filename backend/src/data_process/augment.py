@@ -322,6 +322,15 @@ def time_warp_params(n_knots:int=4, std:float=0.05, low:float=0.0, high:float=2.
     y_knots = x_knots * (1.0 + np.random.randn(n_knots) * std).clip(low, high)
     y_knots[0], y_knots[-1] = 0.0, 1.0
     return x_knots, y_knots
+
+
+def time_warp_params2(n_knots:int=4, std:float=0.05, low:float=0.0, high:float=2.0) -> np.ndarray:
+    ''' Generate random params that Time Warp needs.
+        Version 2: warps timestamps uniformly.
+    args: see time_warp2().
+    '''
+    knots = np.ones(n_knots) + np.random.randn(n_knots) * std
+    return knots.clip(low, high).astype(np.float32)
     
 
 def time_warp(data:np.ndarray, axis:int, n_knots:int=4, std:float=0.05,
@@ -336,20 +345,51 @@ def time_warp(data:np.ndarray, axis:int, n_knots:int=4, std:float=0.05,
             and end timestamps, though they are not warped, which means,
             if n_knots == 2, nothing will happen.
         std: float, the standard deviations of knots.
-        low and high: the lower and higher bounds of the random factors.
+        low and high: the lower and higher bounds of the random knots.
         params: tuple, if not None, use the params to augment data.
     '''
     N = data.shape[axis]
     if params is not None:
         x_knots, y_knots = params
     else:
-        x_knots = np.linspace(0, 1, num=n_knots, endpoint=True, dtype=np.float32)
+        x_knots = np.linspace(0, 1, num=n_knots, endpoint=True)
         y_knots = x_knots * (1.0 + np.random.randn(n_knots) * std).clip(low, high)
         y_knots[0], y_knots[-1] = 0.0, 1.0
     tck = interp.splrep(x_knots, y_knots, s=0, per=False)
-    xs = np.linspace(0, 1, num=N, endpoint=True, dtype=np.float32)
+    xs = np.linspace(0, 1, num=N, endpoint=True)
     t = (N-1) * interp.splev(xs, tck, der=0)
     t = t.clip(0, N-1)
+    f = interp.interp1d(np.arange(N), data, axis=axis)
+    return f(t)
+
+
+def time_warp2(data:np.ndarray, axis:int, n_knots:int=4, std:float=0.05,
+    low:float=0.0, high:float=2.0, params:tuple=None) -> np.ndarray:
+    ''' Warp the timestamps by a smooth curve.
+        Version 2: Version 2: warps timestamps uniformly.
+    args:
+        data: np.ndarray, with any shape and dtype.
+        axis: int, the index of time axis.
+        n_knots: int, the number of random knots on the random curve.
+            To be unified with magnitude warping, n_knots includes the start
+            and end timestamps, though they are not warped, which means,
+            if n_knots == 2, nothing will happen.
+        std: float, the standard deviations of knots, acceptable range: [0, 0.25].
+        low and high: the lower and higher bounds of the random knots.
+        params: np.ndarray, if not None, use the params to augment data.
+    '''
+    N = data.shape[axis]
+    if params is not None:
+        knots = params
+    else:
+        knots = np.ones(n_knots) + np.random.randn(n_knots) * std
+        knots = knots.clip(low, high)
+    x_knots = np.linspace(0, 1, num=knots.shape[0], endpoint=True)
+    tck = interp.splrep(x_knots, knots, s=0, per=False)
+    xs = np.linspace(0, 1, num=N-1, endpoint=True)
+    t = interp.splev(xs, tck, der=0)
+    t = np.concatenate([[0.0], np.cumsum(t)])
+    t = ((N-1) * t / t[-1]).clip(0, N-1)
     f = interp.interp1d(np.arange(N), data, axis=axis)
     return f(t)
 
