@@ -879,31 +879,3 @@ if __name__ == '__main__':
     record = Record(record_path, n_sample=20)
     toc = time.perf_counter()
     print(f'time: {(toc-tic)*1000:.3f} ms')
-    
-    task_list_id = 'TL3wni1oq3'
-    task_id = 'TKsql1b33x'
-    subtask_id = 'STwkzf2nyp'
-    record_id = 'RDzngsoivn'
-    record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
-    tic = time.perf_counter()
-    record2 = Record(record_path, n_sample=20)
-    toc = time.perf_counter()
-    print(f'time: {(toc-tic)*1000:.3f} ms')
-    
-    imu_data = record.cutted_imu_data
-    acc = imu_data['acc']
-    gyro = imu_data['gyro']
-    imu_data = record2.cutted_imu_data
-    acc2 = imu_data['acc']
-    gyro2 = imu_data['gyro']
-    for i in range(20):
-        plt.subplot(2, 2, 1)
-        for j in range(3): plt.plot(acc[i,:,j])
-        plt.subplot(2, 2, 3)
-        for j in range(3): plt.plot(gyro[i,:,j])
-        plt.subplot(2, 2, 2)
-        for j in range(3): plt.plot(acc2[i,:,j])
-        plt.subplot(2, 2, 4)
-        for j in range(3): plt.plot(gyro2[i,:,j])
-        plt.show()
-    
