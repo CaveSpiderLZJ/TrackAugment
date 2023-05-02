@@ -31,7 +31,8 @@ USERS = ('lzj', 'lzj2', 'hz', 'xq', 'zyh', 'hyw', 'zxyx', 'crj', 'jjx', 'zz',
 # data augmentation
 CUT_DURATION: float = 2.5       # action duration after cutting (s)
 TRAIN_DURATION: float = 2.0     # action duration for training (s)
-RANDOM_SAMPLE_EN: bool = True   # whether to randomly sample action data from cut duration to train duration
+RAND_SAMPLE_EN: bool = True     # whether to randomly sample action data from cut duration to train duration
+RAND_SAMPLE_DURATION: float = 0.2   # the random sample duration range (s), its inverse would be the real-time sample frequency.
 AUG_METHOD: str = 'classic_on_track'          # in {None, 'classic', 'classic_on_track', 'dtw'}
 
 # train

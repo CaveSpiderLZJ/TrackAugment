@@ -692,9 +692,7 @@ def visualize_dtw_offset():
         for i in range(3): plt.plot(gyro3[:,i])
         plt.subplot(3, 2, 6)
         for i in range(3): plt.plot(gyro2[:,i])
-        plt.show()
-        
-        
+        plt.show()    
         
 def visualize_scale_gyro(record:Record):
     idx, s = 5, 1.5
@@ -873,27 +871,39 @@ if __name__ == '__main__':
     np.random.seed(0)
     fu.check_cwd()
     task_list_id = 'TL3wni1oq3'
-    task_id = 'TKqqx4moyj'
-    subtask_id = 'STdizve3j2'
-    record_id = 'RDcv4ja8dr'
+    task_id = 'TKp59cxeeh'
+    subtask_id = 'STpvm6yoty'
+    record_id = 'RD4ax3nd3l'
     record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
     tic = time.perf_counter()
     record = Record(record_path, n_sample=20)
     toc = time.perf_counter()
     print(f'time: {(toc-tic)*1000:.3f} ms')
     
+    task_list_id = 'TL3wni1oq3'
+    task_id = 'TKsql1b33x'
+    subtask_id = 'STwkzf2nyp'
+    record_id = 'RDzngsoivn'
+    record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
+    tic = time.perf_counter()
+    record2 = Record(record_path, n_sample=20)
+    toc = time.perf_counter()
+    print(f'time: {(toc-tic)*1000:.3f} ms')
     
-    visualize_filter(record)
-    # visualize_error()
-    # visualize_clean_mask()
-    # visualize_cleaned_negative_data()
-    # visualize_tsne()
-    # visualize_data_distribution()
-    # visualize_dtw_augment(record)
-    # visualize_dtw_offset()
-    # visualize_scale_gyro(record)
-    # visualize_3d_track_by_subtask()
-    # visualize_rotated_imu_signal(record)
-    # visualize_move()
-    # visualize_move_distance()
+    imu_data = record.cutted_imu_data
+    acc = imu_data['acc']
+    gyro = imu_data['gyro']
+    imu_data = record2.cutted_imu_data
+    acc2 = imu_data['acc']
+    gyro2 = imu_data['gyro']
+    for i in range(20):
+        plt.subplot(2, 2, 1)
+        for j in range(3): plt.plot(acc[i,:,j])
+        plt.subplot(2, 2, 3)
+        for j in range(3): plt.plot(gyro[i,:,j])
+        plt.subplot(2, 2, 2)
+        for j in range(3): plt.plot(acc2[i,:,j])
+        plt.subplot(2, 2, 4)
+        for j in range(3): plt.plot(gyro2[i,:,j])
+        plt.show()
     
