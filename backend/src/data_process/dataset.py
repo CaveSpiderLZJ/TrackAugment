@@ -48,7 +48,9 @@ class Dataset(torch.utils.data.Dataset):
         idx = self.reindex_map[idx]
         w_cut = int(cf.CUT_DURATION * cf.FS_PREPROCESS)
         w_train = int(cf.TRAIN_DURATION * cf.FS_PREPROCESS)
-        if cf.RANDOM_SAMPLE_EN: start = np.random.randint(0, w_cut - w_train)
+        w_rand = int(cf.RAND_SAMPLE_DURATION * cf.FS_PREPROCESS)
+        if cf.RAND_SAMPLE_EN:
+            start = (w_cut - w_train - w_rand) // 2 + np.random.randint(0, w_rand)
         else: start = (w_cut - w_train) // 2
         sample = self.augmented_imu_data[idx, start:start+w_train, :]
         sample = aug.down_sample_by_step(sample, axis=0, step=(cf.FS_PREPROCESS//cf.FS_TRAIN))
@@ -189,6 +191,7 @@ class Dataset(torch.utils.data.Dataset):
                 augmented_imu_data.append(np.concatenate(imu_list, axis=0))
                 augmented_labels.append(labels)
         else:                       # no augmentation, copy imu data directly
+            assert method is None
             for acc, gyro, labels in zip(self.raw_imu_data['acc'],
                 self.raw_imu_data['gyro'], self.raw_positive_labels):
                 augmented_imu_data.append(np.concatenate([acc, gyro], axis=2))

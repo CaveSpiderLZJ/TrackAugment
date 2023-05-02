@@ -40,7 +40,7 @@ class Dataset(torch.utils.data.Dataset):
         if self.reindex_map is not None: idx = self.reindex_map[idx]
         w_cut = int(cf.CUT_DURATION * cf.FS_PREPROCESS)
         w_train = int(cf.TRAIN_DURATION * cf.FS_PREPROCESS)
-        if cf.RANDOM_SAMPLE_EN: start = np.random.randint(0, w_cut - w_train)
+        if cf.RAND_SAMPLE_EN: start = np.random.randint(0, w_cut - w_train)
         else: start = (w_cut - w_train) // 2
         sample = np.concatenate([self.imu_data['acc'][idx,start:start+w_train,:],
             self.imu_data['gyro'][idx,start:start+w_train,:]], axis=1)

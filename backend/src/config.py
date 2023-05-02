@@ -31,15 +31,16 @@ USERS = ('lzj', 'lzj2', 'hz', 'xq', 'zyh', 'hyw', 'zxyx', 'crj', 'jjx', 'zz',
 # data augmentation
 CUT_DURATION: float = 2.5       # action duration after cutting (s)
 TRAIN_DURATION: float = 2.0     # action duration for training (s)
-RANDOM_SAMPLE_EN: bool = True   # whether to randomly sample action data from cut duration to train duration
-AUG_METHOD: str = None          # in {None, 'classic', 'classic_on_track', 'dtw'}
+RAND_SAMPLE_EN: bool = True     # whether to randomly sample action data from cut duration to train duration
+RAND_SAMPLE_DURATION: float = 0.2   # the random sample duration range (s), its inverse would be the real-time sample frequency.
+AUG_METHOD: str = 'classic_on_track'          # in {None, 'classic', 'classic_on_track', 'dtw'}
 
 # train
 RAND_SEED = 0
 FS_TRAIN = 100
 MODEL_ROOT = '../data/model'
 LOG_ROOT = '../data/log'
-MODEL_NAME = 'debug'
+MODEL_NAME = '33_PilotMove_ClassicOnTrack_lzj4out_epoch100_lr1e-4'
 N_CLASSES = 6
 # CLASS_NAMES = ('Negative', 'Raise', 'Drop', 'Shake', 'DoubleShake', 'Flip', 'DoubleFlip')
 CLASS_NAMES = ('Negative', 'Move10cm', 'Move20cm', 'Move30cm', 'Move40cm', 'Move50cm')
@@ -50,9 +51,9 @@ N_TEST_DAYS = 1
 N_EPOCHS = 100
 LEARNING_RATE = 1e-4
 SUPER_BATCH = 10    # how many batches a super batch contains
-BATCH_SIZE = 32
+BATCH_SIZE = 64
 WARMUP_STEPS = 10
 LOG_STEPS = 1
 EVAL_STEPS = 5
 GC_STEPS = 4
-DEVICE = torch.device('cpu')
+DEVICE = torch.device('cuda')
