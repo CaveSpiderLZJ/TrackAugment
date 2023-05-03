@@ -157,7 +157,7 @@ def visualize_augmented_3d_track(record:Record) -> None:
     # augmented_acc = aug.jitter(acc, std=1)
     # augmented_acc = aug.scale(acc, 0.05)
     augmented_acc = aug.time_warp(acc, axis=0, n_knots=4, std=0.05)
-    # augmented_acc = aug.magnitude_warp(acc, axis=0, n_knots=4, std=0.1, preserve_bound=True)
+    # augmented_acc = aug.magnitude_warp(acc, axis=0, n_knots=4, std=0.1)
     gyro = imu_data['gyro'][start_imu:end_imu,:]
     gyro = aug.down_sample_by_step(gyro, axis=0, step=5)
     # prepare track data
@@ -263,7 +263,7 @@ def augment_track(record:Record):
     # augment data
     # augmented_pos = aug.jitter(center_pos, std=1e-3)
     # augmented_pos = aug.scale(center_pos, std=0.05)
-    augmented_pos = aug.magnitude_warp(center_pos, axis=0, n_knots=8, std=0.1, preserve_bound=True)
+    augmented_pos = aug.magnitude_warp(center_pos, axis=0, n_knots=8, std=0.1)
     # augmented_pos = aug.time_warp(center_pos, axis=0, n_knots=4, std=0.1)
     augmented_acc = aug.track_to_acc(augmented_pos, axes, 200.0)
     augmented_gyro = aug.track_to_gyro(axes, 200.0)
@@ -327,7 +327,7 @@ def augment_imu(record:Record):
     # augment data
     # augmented_acc = aug.jitter(acc, std=1.0)
     # augmented_acc = aug.scale(acc, std=0.1)
-    # augmented_acc = aug.magnitude_warp(acc, axis=0, n_knots=8, std=0.1, preserve_bound=True)
+    # augmented_acc = aug.magnitude_warp(acc, axis=0, n_knots=8, std=0.1)
     augmented_acc = aug.time_warp(acc, axis=0, n_knots=4, std=0.1)
     # augmented_gyro = gyro.copy()
     augmented_gyro = aug.time_warp(gyro, axis=0, n_knots=4, std=0.1)
@@ -694,14 +694,16 @@ def visualize_dtw_offset():
         for i in range(3): plt.plot(gyro2[:,i])
         plt.show()    
         
+        
 def visualize_scale_gyro(record:Record):
-    idx, s = 5, 1.5
+    idx = 5
+    params = aug.magnitude_warp_params(n_knots=16, std=0.2)
     start, end = 100, 400
     cutted_imu_data = record.cutted_imu_data
     acc = cutted_imu_data['acc'][idx,start:end,:]
     gyro = cutted_imu_data['gyro'][idx,start:end,:]
-    scaled_acc = acc * s
-    scaled_gyro = gyro * s
+    scaled_acc = aug.magnitude_warp(acc, axis=0, params=params)
+    scaled_gyro = aug.magnitude_warp(gyro, axis=0, params=params)
     
     cutted_track_data = record.cutted_track_data
     center_pos = cutted_track_data['center_pos'][idx,start:end,:]
@@ -709,12 +711,13 @@ def visualize_scale_gyro(record:Record):
     axes = aug.calc_local_axes(marker_pos)
     track_acc = aug.track_to_acc(center_pos, axes, fs=cf.FS_PREPROCESS)
     track_gyro = aug.track_to_gyro(axes, fs=cf.FS_PREPROCESS)
-    scaled_center_pos = center_pos * s
+    scaled_center_pos = aug.magnitude_warp(center_pos, axis=0, params=params)
     axes = aug.calc_local_axes(marker_pos)
     q = axes.transpose(1, 2, 0)     # rotation matrix
     delta_q = np.matmul(np.linalg.inv(q[0,:,:])[None,:,:], q)
-    scaled_rot_vec = Rotation.from_matrix(delta_q).as_rotvec() * s
-    scaled_axes = np.matmul(q[0:1,:,:], Rotation.from_rotvec(scaled_rot_vec).as_matrix()).transpose(2,0,1)
+    rotvec = Rotation.from_matrix(delta_q).as_rotvec()
+    scaled_rotvec = aug.magnitude_warp(rotvec, axis=0, params=params)
+    scaled_axes = np.matmul(q[0:1,:,:], Rotation.from_rotvec(scaled_rotvec).as_matrix()).transpose(2,0,1)
     scaled_track_acc = aug.track_to_acc(scaled_center_pos, scaled_axes, fs=cf.FS_PREPROCESS)
     scaled_track_gyro = aug.track_to_gyro(scaled_axes, fs=cf.FS_PREPROCESS)
      
@@ -880,30 +883,4 @@ if __name__ == '__main__':
     toc = time.perf_counter()
     print(f'time: {(toc-tic)*1000:.3f} ms')
     
-    task_list_id = 'TL3wni1oq3'
-    task_id = 'TKsql1b33x'
-    subtask_id = 'STwkzf2nyp'
-    record_id = 'RDzngsoivn'
-    record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
-    tic = time.perf_counter()
-    record2 = Record(record_path, n_sample=20)
-    toc = time.perf_counter()
-    print(f'time: {(toc-tic)*1000:.3f} ms')
-    
-    imu_data = record.cutted_imu_data
-    acc = imu_data['acc']
-    gyro = imu_data['gyro']
-    imu_data = record2.cutted_imu_data
-    acc2 = imu_data['acc']
-    gyro2 = imu_data['gyro']
-    for i in range(20):
-        plt.subplot(2, 2, 1)
-        for j in range(3): plt.plot(acc[i,:,j])
-        plt.subplot(2, 2, 3)
-        for j in range(3): plt.plot(gyro[i,:,j])
-        plt.subplot(2, 2, 2)
-        for j in range(3): plt.plot(acc2[i,:,j])
-        plt.subplot(2, 2, 4)
-        for j in range(3): plt.plot(gyro2[i,:,j])
-        plt.show()
-    
+    visualize_scale_gyro(record)
