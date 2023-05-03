@@ -374,7 +374,7 @@ def time_warp2(data:np.ndarray, axis:int, n_knots:int=4, std:float=0.05,
             To be unified with magnitude warping, n_knots includes the start
             and end timestamps, though they are not warped, which means,
             if n_knots == 2, nothing will happen.
-        std: float, the standard deviations of knots, acceptable range: [0, 0.25].
+        std: float, the standard deviations of knots, acceptable range: [0, 0.30].
         low and high: the lower and higher bounds of the random knots.
         params: np.ndarray, if not None, use the params to augment data.
     '''
@@ -457,30 +457,43 @@ def classic_augment_on_track(center_pos:np.ndarray, marker_pos:np.ndarray) -> np
     axes = calc_local_axes(marker_pos)
     strategies = np.random.randint(0,8)
     if strategies in (1, 3, 5, 7):
-        params = zoom_params()
-        center_pos = zoom(center_pos, axis=0, params=params)
-        axes = zoom(axes, axis=1, params=params)
-    if strategies in (2, 3, 6, 7):
-        params = scale_params(std=0.025) ### for Pilot Move
+        params = scale_params(std=0.002)
         center_pos = scale(center_pos, params=params)
         q = axes.transpose(1, 2, 0)     # rotation matrix
         delta_q = np.matmul(np.linalg.inv(q[0,:,:])[None,:,:], q)
         scaled_rot_vec = scale(Rotation.from_matrix(delta_q).as_rotvec(), params=params)
         axes = np.matmul(q[0:1,:,:], Rotation.from_rotvec(scaled_rot_vec).as_matrix()).transpose(2,0,1)
+    if strategies in (2, 3, 6, 7):
+        params = zoom_params(low=0.8)
+        center_pos = zoom(center_pos, axis=0, params=params)
+        axes = zoom(axes, axis=1, params=params)
     if strategies in (4, 5, 6, 7):
-        params = time_warp_params()
-        center_pos = time_warp(center_pos, axis=0, params=params)
-        axes = time_warp(axes, axis=1, params=params)
+        params = time_warp_params2(n_knots=6, std=0.1)
+        center_pos = time_warp2(center_pos, axis=0, params=params)
+        axes = time_warp2(axes, axis=1, params=params)
     acc = track_to_acc(center_pos, axes, fs=cf.FS_PREPROCESS)
     gyro = track_to_gyro(axes, fs=cf.FS_PREPROCESS)
     return np.concatenate([acc, gyro], axis=1)
     '''
     
-    # test zoom
+    # test scale, zoom and time warping.
     axes = calc_local_axes(marker_pos)
-    params = zoom_params(low=0.82, high=1.0)
-    center_pos = zoom(center_pos, axis=0, params=params)
-    axes = zoom(axes, axis=1, params=params)
+    strategies = np.random.randint(0,8)
+    if strategies in (1, 3, 5, 7):
+        params = scale_params(std=0.002)
+        center_pos = scale(center_pos, params=params)
+        q = axes.transpose(1, 2, 0)     # rotation matrix
+        delta_q = np.matmul(np.linalg.inv(q[0,:,:])[None,:,:], q)
+        scaled_rot_vec = scale(Rotation.from_matrix(delta_q).as_rotvec(), params=params)
+        axes = np.matmul(q[0:1,:,:], Rotation.from_rotvec(scaled_rot_vec).as_matrix()).transpose(2,0,1)
+    if strategies in (2, 3, 6, 7):
+        params = zoom_params(low=0.8)
+        center_pos = zoom(center_pos, axis=0, params=params)
+        axes = zoom(axes, axis=1, params=params)
+    if strategies in (4, 5, 6, 7):
+        params = time_warp_params2(n_knots=6, std=0.1)
+        center_pos = time_warp2(center_pos, axis=0, params=params)
+        axes = time_warp2(axes, axis=1, params=params)
     acc = track_to_acc(center_pos, axes, fs=cf.FS_PREPROCESS)
     gyro = track_to_gyro(axes, fs=cf.FS_PREPROCESS)
     return np.concatenate([acc, gyro], axis=1)
