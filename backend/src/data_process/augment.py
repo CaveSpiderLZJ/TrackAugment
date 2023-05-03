@@ -289,29 +289,39 @@ def window_slice(data:np.ndarray, axis:int, start:int, window_length:int) -> np.
     return data[tuple(slices)]
 
 
-def magnitude_warp(data:np.ndarray, axis:int, n_knots:int,
-        std:float, preserve_bound:bool=False) -> np.ndarray:
+def magnitude_warp_params(n_knots:int=4, std:float=0.05,
+    low:float=0.0, high:float=2.0) -> np.ndarray:
+    ''' Generate random params that Magnitude Warp needs.
+    args: see magnitude_warp().
+    '''
+
+
+def magnitude_warp(data:np.ndarray, axis:int, n_knots:int=4, std:float=0.05,
+        low:float=0.0, high:float=2.0, params:np.ndarray=None) -> np.ndarray:
     ''' Warp the data magnitude by a smooth curve along the time axis.
     args:
         data: np.ndarray, with any shape and dtype.
         axis: int, the index of time axis.
         n_knots: int, the number of random knots on the random curve.
         std: float, the standard deviations of knots.
-        preserve_bound: bool, whether to preserve data magnitude at the start
-            and end of the time series. Default is False.
+        low and high: float, the lower and higher bounds of the random knots.
+        params: np.ndarray, if not None, use the params to augment data.
     returns:
         np.ndarray, with the same shape as data.
     '''
     N = data.shape[axis]
-    x_knots = np.arange(n_knots) * N / (n_knots-1)
-    y_knots = 1.0 + np.random.randn(n_knots) * std
-    if preserve_bound:
-        y_knots[0], y_knots[-1] = 1.0, 1.0
-    tck = interp.splrep(x_knots, y_knots, s=0, per=False)
-    ys = interp.splev(np.arange(N), tck, der=0)
+    if params is not None:
+        knots = params
+    else:
+        knots = np.ones(n_knots) + np.random.randn(n_knots) * std
+        knots = knots.clip(low, high)
+    x_knots = np.linspace(0, 1, num=knots.shape[0], endpoint=True)
+    tck = interp.splrep(x_knots, knots, s=0, per=False)
+    xs = np.linspace(0, 1, num=N, endpoint=True)
+    magnitude = interp.splev(xs, tck, der=0)
     slices = [None] * data.ndim
     slices[axis] = slice(None)
-    return data * ys[tuple(slices)]
+    return data * magnitude[tuple(slices)]
 
 
 def time_warp_params(n_knots:int=4, std:float=0.05, low:float=0.0, high:float=2.0) -> tuple:
@@ -345,7 +355,7 @@ def time_warp(data:np.ndarray, axis:int, n_knots:int=4, std:float=0.05,
             and end timestamps, though they are not warped, which means,
             if n_knots == 2, nothing will happen.
         std: float, the standard deviations of knots.
-        low and high: the lower and higher bounds of the random knots.
+        low and high: float, the lower and higher bounds of the random knots.
         params: tuple, if not None, use the params to augment data.
     '''
     N = data.shape[axis]
@@ -364,7 +374,7 @@ def time_warp(data:np.ndarray, axis:int, n_knots:int=4, std:float=0.05,
 
 
 def time_warp2(data:np.ndarray, axis:int, n_knots:int=4, std:float=0.05,
-    low:float=0.0, high:float=2.0, params:tuple=None) -> np.ndarray:
+    low:float=0.0, high:float=2.0, params:np.ndarray=None) -> np.ndarray:
     ''' Warp the timestamps by a smooth curve.
         Version 2: Version 2: warps timestamps uniformly.
     args:
@@ -375,7 +385,7 @@ def time_warp2(data:np.ndarray, axis:int, n_knots:int=4, std:float=0.05,
             and end timestamps, though they are not warped, which means,
             if n_knots == 2, nothing will happen.
         std: float, the standard deviations of knots, acceptable range: [0, 0.30].
-        low and high: the lower and higher bounds of the random knots.
+        low and high: float, the lower and higher bounds of the random knots.
         params: np.ndarray, if not None, use the params to augment data.
     '''
     N = data.shape[axis]
