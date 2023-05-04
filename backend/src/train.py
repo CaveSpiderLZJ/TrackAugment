@@ -363,4 +363,3 @@ if __name__ == '__main__':
     torch.manual_seed(cf.RAND_SEED)
     fu.check_cwd()
     main()
-    
