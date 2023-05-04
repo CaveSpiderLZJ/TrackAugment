@@ -221,7 +221,7 @@ def rotate(data:np.ndarray, matrix:np.ndarray) -> np.ndarray:
     return np.matmul(matrix, data.transpose(schema)).transpose(schema)
 
 
-def zoom_params(low:float=0.9, high:float=1.0) -> float:
+def zoom_params(low:float=0.8, high:float=1.0) -> float:
     ''' Generate random params that Zoom needs.
     args: see zoom().
     '''
@@ -229,7 +229,7 @@ def zoom_params(low:float=0.9, high:float=1.0) -> float:
     return s
 
 
-def zoom(data:np.ndarray, axis:int, low:float=0.9,
+def zoom(data:np.ndarray, axis:int, low:float=0.8,
     high:float=1.0, params:float=None) -> np.ndarray:
     ''' Zoom data in time axis, by a random factor s in [low, high].
     args:
@@ -251,7 +251,7 @@ def zoom(data:np.ndarray, axis:int, low:float=0.9,
     return f(t)
 
 
-def scale_params(std:float=0.2, low:float=0.0, high:float=2.0) -> float:
+def scale_params(std:float=0.002, low:float=0.0, high:float=2.0) -> float:
     ''' Generate random params that Scale needs.
     args: see scale().
     '''
@@ -259,7 +259,7 @@ def scale_params(std:float=0.2, low:float=0.0, high:float=2.0) -> float:
     return s
 
 
-def scale(data:np.ndarray, std:float=0.2, low:float=0.0,
+def scale(data:np.ndarray, std:float=0.002, low:float=0.0,
     high:float=2.0, params:float=None) -> np.ndarray:
     ''' Scale the data by a random factor s ~ N(1, std^2).
     args:
@@ -289,14 +289,16 @@ def window_slice(data:np.ndarray, axis:int, start:int, window_length:int) -> np.
     return data[tuple(slices)]
 
 
-def magnitude_warp_params(n_knots:int=4, std:float=0.05,
+def magnitude_warp_params(n_knots:int=6, std:float=0.002,
     low:float=0.0, high:float=2.0) -> np.ndarray:
     ''' Generate random params that Magnitude Warp needs.
     args: see magnitude_warp().
     '''
+    knots = np.ones(n_knots) + np.random.randn(n_knots) * std
+    return knots.clip(low, high)
 
 
-def magnitude_warp(data:np.ndarray, axis:int, n_knots:int=4, std:float=0.05,
+def magnitude_warp(data:np.ndarray, axis:int, n_knots:int=6, std:float=0.002,
         low:float=0.0, high:float=2.0, params:np.ndarray=None) -> np.ndarray:
     ''' Warp the data magnitude by a smooth curve along the time axis.
     args:
@@ -324,7 +326,7 @@ def magnitude_warp(data:np.ndarray, axis:int, n_knots:int=4, std:float=0.05,
     return data * magnitude[tuple(slices)]
 
 
-def time_warp_params(n_knots:int=4, std:float=0.05, low:float=0.0, high:float=2.0) -> tuple:
+def time_warp_params(n_knots:int=6, std:float=0.1, low:float=0.0, high:float=2.0) -> tuple:
     ''' Generate random params that Time Warp needs.
     args: see time_warp().
     '''
@@ -334,16 +336,16 @@ def time_warp_params(n_knots:int=4, std:float=0.05, low:float=0.0, high:float=2.
     return x_knots, y_knots
 
 
-def time_warp_params2(n_knots:int=4, std:float=0.05, low:float=0.0, high:float=2.0) -> np.ndarray:
+def time_warp_params2(n_knots:int=6, std:float=0.1, low:float=0.0, high:float=2.0) -> np.ndarray:
     ''' Generate random params that Time Warp needs.
         Version 2: warps timestamps uniformly.
     args: see time_warp2().
     '''
     knots = np.ones(n_knots) + np.random.randn(n_knots) * std
-    return knots.clip(low, high).astype(np.float32)
+    return knots.clip(low, high)
     
 
-def time_warp(data:np.ndarray, axis:int, n_knots:int=4, std:float=0.05,
+def time_warp(data:np.ndarray, axis:int, n_knots:int=6, std:float=0.1,
         low:float=0.0, high:float=2.0, params:tuple=None) -> np.ndarray:
     ''' Warp the timestamps by a smooth curve. Unlike magnitude warping,
         time warping always preserves the timestamps at the start and end.
@@ -373,7 +375,7 @@ def time_warp(data:np.ndarray, axis:int, n_knots:int=4, std:float=0.05,
     return f(t)
 
 
-def time_warp2(data:np.ndarray, axis:int, n_knots:int=4, std:float=0.05,
+def time_warp2(data:np.ndarray, axis:int, n_knots:int=6, std:float=0.1,
     low:float=0.0, high:float=2.0, params:np.ndarray=None) -> np.ndarray:
     ''' Warp the timestamps by a smooth curve.
         Version 2: Version 2: warps timestamps uniformly.
@@ -465,45 +467,63 @@ def classic_augment_on_track(center_pos:np.ndarray, marker_pos:np.ndarray) -> np
     
     ''' compelete algorithm
     axes = calc_local_axes(marker_pos)
-    strategies = np.random.randint(0,8)
-    if strategies in (1, 3, 5, 7):
+    strategies = np.random.randint(0,16)
+    if strategies in (1,3,5,7,9,11,13,15):
         params = scale_params(std=0.002)
         center_pos = scale(center_pos, params=params)
         q = axes.transpose(1, 2, 0)     # rotation matrix
         delta_q = np.matmul(np.linalg.inv(q[0,:,:])[None,:,:], q)
         scaled_rot_vec = scale(Rotation.from_matrix(delta_q).as_rotvec(), params=params)
         axes = np.matmul(q[0:1,:,:], Rotation.from_rotvec(scaled_rot_vec).as_matrix()).transpose(2,0,1)
-    if strategies in (2, 3, 6, 7):
+    if strategies in (2,3,6,7,10,11,14,15):
         params = zoom_params(low=0.8)
         center_pos = zoom(center_pos, axis=0, params=params)
         axes = zoom(axes, axis=1, params=params)
-    if strategies in (4, 5, 6, 7):
+    if strategies in (4,5,6,7,12,13,14,15):
         params = time_warp_params2(n_knots=6, std=0.1)
         center_pos = time_warp2(center_pos, axis=0, params=params)
         axes = time_warp2(axes, axis=1, params=params)
+    if strategies in (8,9,10,11,12,13,14,15):
+        params = magnitude_warp_params(n_knots=6, std=0.002)
+        center_pos = magnitude_warp(center_pos, axis=0, params=params)
+        q = axes.transpose(1, 2, 0)     # rotation matrix
+        delta_q = np.matmul(np.linalg.inv(q[0,:,:])[None,:,:], q)
+        rotvec = Rotation.from_matrix(delta_q).as_rotvec()
+        rotvec = magnitude_warp(rotvec, axis=0, params=params)
+        axes = np.matmul(q[0:1,:,:], Rotation.from_rotvec(rotvec).as_matrix()).transpose(2,0,1)
     acc = track_to_acc(center_pos, axes, fs=cf.FS_PREPROCESS)
     gyro = track_to_gyro(axes, fs=cf.FS_PREPROCESS)
     return np.concatenate([acc, gyro], axis=1)
     '''
     
-    # test scale, zoom and time warping.
+    # test magnitude warp
     axes = calc_local_axes(marker_pos)
-    strategies = np.random.randint(0,8)
-    if strategies in (1, 3, 5, 7):
+    
+    strategies = np.random.randint(0,16)
+    if strategies in (1,3,5,7,9,11,13,15):
         params = scale_params(std=0.002)
         center_pos = scale(center_pos, params=params)
         q = axes.transpose(1, 2, 0)     # rotation matrix
         delta_q = np.matmul(np.linalg.inv(q[0,:,:])[None,:,:], q)
         scaled_rot_vec = scale(Rotation.from_matrix(delta_q).as_rotvec(), params=params)
         axes = np.matmul(q[0:1,:,:], Rotation.from_rotvec(scaled_rot_vec).as_matrix()).transpose(2,0,1)
-    if strategies in (2, 3, 6, 7):
+    if strategies in (2,3,6,7,10,11,14,15):
         params = zoom_params(low=0.8)
         center_pos = zoom(center_pos, axis=0, params=params)
         axes = zoom(axes, axis=1, params=params)
-    if strategies in (4, 5, 6, 7):
+    if strategies in (4,5,6,7,12,13,14,15):
         params = time_warp_params2(n_knots=6, std=0.1)
         center_pos = time_warp2(center_pos, axis=0, params=params)
         axes = time_warp2(axes, axis=1, params=params)
+    if strategies in (8,9,10,11,12,13,14,15):
+        params = magnitude_warp_params(n_knots=6, std=0.002)
+        center_pos = magnitude_warp(center_pos, axis=0, params=params)
+        q = axes.transpose(1, 2, 0)     # rotation matrix
+        delta_q = np.matmul(np.linalg.inv(q[0,:,:])[None,:,:], q)
+        rotvec = Rotation.from_matrix(delta_q).as_rotvec()
+        rotvec = magnitude_warp(rotvec, axis=0, params=params)
+        axes = np.matmul(q[0:1,:,:], Rotation.from_rotvec(rotvec).as_matrix()).transpose(2,0,1)
+    
     acc = track_to_acc(center_pos, axes, fs=cf.FS_PREPROCESS)
     gyro = track_to_gyro(axes, fs=cf.FS_PREPROCESS)
     return np.concatenate([acc, gyro], axis=1)
