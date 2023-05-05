@@ -175,8 +175,8 @@ class Dataset(torch.utils.data.Dataset):
         augmented_imu_data = []
         augmented_labels = []
         if method == 'classic':     # classic augmentation methods on imu data
-            for acc, gyro, labels in zip(self.raw_imu_data['acc'],
-                self.raw_imu_data['gyro'], self.raw_positive_labels):
+            for acc, gyro, labels in zip(self.track2imu_data['acc'],
+                self.track2imu_data['gyro'], self.raw_positive_labels):
                 N = labels.shape[0]
                 imu_list = []
                 for i in range(N):

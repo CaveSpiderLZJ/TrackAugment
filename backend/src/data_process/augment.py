@@ -454,10 +454,26 @@ def classic_augment(data:np.ndarray, axis:int) -> np.ndarray:
         data: np.ndarray, of any shape, data to be augmented.
         axis: int, the time series axis.
     '''
+    
+    ''' compelete algorithm
+    strategies = np.random.randint(0,16)
+    if strategies in (1,3,5,7,9,11,13,15):
+        data = scale(data, std=0.05)
+    if strategies in (2,3,6,7,10,11,14,15):
+        data = zoom(data, axis=axis, low=0.999)
+    if strategies in (4,5,6,7,12,13,14,15):
+        data = time_warp2(data, axis=axis, n_knots=4, std=0.08)
+    if strategies in (8,9,10,11,12,13,14,15):
+        data = magnitude_warp(data, axis=axis, n_knots=6, std=0.008)
+    return data
+    '''
     strategies = np.random.randint(0,8)
-    if strategies in (1, 3, 5, 7): data = zoom(data, axis=axis)
-    if strategies in (2, 3, 6, 7): data = scale(data, std=0.025) ### for Pilot Move
-    if strategies in (4, 5, 6, 7): data = time_warp(data, axis=axis)
+    if strategies in (1, 3, 5, 7):
+        data = zoom(data, axis=axis, low=0.999)
+    if strategies in (2, 3, 6, 7):
+        data = time_warp2(data, axis=axis, n_knots=4, std=0.08)
+    if strategies in (4, 5, 6, 7):
+        data = magnitude_warp(data, axis=axis, n_knots=6, std=0.008)
     return data
 
 
