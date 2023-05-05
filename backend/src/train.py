@@ -145,18 +145,22 @@ def build_dataloader_pilot_move() -> Tuple[DataLoader, DataLoader]:
     assert task_list is not None
     
     # build the dataset and dataloader
-    train_users = ['lzj2', 'lzj4', 'lzj6', 'lzj7', 'lzj8']
-    test_users = ['lzj', 'lzj3', 'lzj5']
+    # train_users = ['lzj2', 'lzj4', 'lzj6', 'lzj7', 'lzj8']
+    # test_users = ['lzj', 'lzj3', 'lzj5']
+    train_users = ['lzj2', 'lzj4', 'lzj6', 'lzj7']
+    val_users = ['lzj', 'lzj8']
+    test_users = ['lzj3', 'lzj5']
     train_days = [1]
-    test_days = [2]
-    train_negative_paths = []
-    test_negative_paths = []
+    val_days = [2]
+    test_days = [3]
+    train_negative_paths, val_negative_paths, test_negative_paths = [], [], []
     for day in train_days:
         train_negative_paths.extend(glob(f'../data/negative/day{day}/*.pkl'))
+    for day in val_days:
+        val_negative_paths.extend(glob(f'../data/negative/day{day}/*.pkl'))
     for day in test_days:
         test_negative_paths.extend(glob(f'../data/negative/day{day}/*.pkl'))
-    train_dataset = Dataset()
-    test_dataset = Dataset()
+    train_dataset, val_dataset, test_dataset = Dataset(), Dataset(), Dataset()
     
     # insert positive data
     print(f'### Insert positive data.')
@@ -168,7 +172,7 @@ def build_dataloader_pilot_move() -> Tuple[DataLoader, DataLoader]:
         for subtask in task['subtasks']:
             record_dict = subtask['record_dict']
             for user_name, record_id in record_dict.items():
-                if user_name not in train_users and user_name not in test_users: continue
+                if user_name not in (train_users + val_users + test_users): continue
                 record_info.append((task['id'], subtask['id'], record_id, user_name, subtask['times'], label))
     for task_id, subtask_id, record_id, user_name, times, label in tqdm.tqdm(record_info):
         record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
@@ -179,7 +183,10 @@ def build_dataloader_pilot_move() -> Tuple[DataLoader, DataLoader]:
             continue
         if user_name in train_users:
             train_dataset.insert_record(record, label)
-        else: test_dataset.insert_record(record, label)
+        elif user_name in val_users:
+            val_dataset.insert_record(record, label)
+        elif user_name in test_users:
+            test_dataset.insert_record(record, label)
         
     # insert negative data
     print(f'### Insert negative data.')
@@ -188,26 +195,30 @@ def build_dataloader_pilot_move() -> Tuple[DataLoader, DataLoader]:
     for i in tqdm.trange(int(np.ceil(len(train_negative_paths)/negative_batch))):
         negative_data = []
         for path in train_negative_paths[i*negative_batch:(i+1)*negative_batch]:
-            data = pickle.load(open(path, 'rb'))
-            negative_data.append(data[None,:W,:])
-        negative_data = np.concatenate(negative_data, axis=0)
-        train_dataset.insert_negativa_data(negative_data, label=0)
+            negative_data.append(pickle.load(open(path, 'rb'))[None,:W,:])
+        train_dataset.insert_negativa_data(np.concatenate(negative_data, axis=0), label=0)
+    for i in tqdm.trange(int(np.ceil(len(val_negative_paths)/negative_batch))):
+        negative_data = []
+        for path in val_negative_paths[i*negative_batch:(i+1)*negative_batch]:
+            negative_data.append(pickle.load(open(path, 'rb'))[None,:W,:])
+        val_dataset.insert_negativa_data(np.concatenate(negative_data, axis=0), label=0)
     for i in tqdm.trange(int(np.ceil(len(test_negative_paths)/negative_batch))):
         negative_data = []
         for path in test_negative_paths[i*negative_batch:(i+1)*negative_batch]:
-            data = pickle.load(open(path, 'rb'))
-            negative_data.append(data[None,:W,:])
-        negative_data = np.concatenate(negative_data, axis=0)
-        test_dataset.insert_negativa_data(negative_data, label=0)
+            negative_data.append(pickle.load(open(path, 'rb'))[None,:W,:])
+        test_dataset.insert_negativa_data(np.concatenate(negative_data, axis=0), label=0)
     
     train_dataset.augment(method=cf.AUG_METHOD)
+    val_dataset.augment(method=None)
     test_dataset.augment(method=None)
     train_dataloader = DataLoader(train_dataset, batch_size=cf.BATCH_SIZE,
+        shuffle=True, pin_memory=True, num_workers=0, worker_init_fn=worker_init_fn)
+    val_dataloader = DataLoader(val_dataset, batch_size=cf.BATCH_SIZE,
         shuffle=True, pin_memory=True, num_workers=0, worker_init_fn=worker_init_fn)
     test_dataloader = DataLoader(test_dataset, batch_size=cf.BATCH_SIZE,
         shuffle=True, pin_memory=True, num_workers=0, worker_init_fn=worker_init_fn)
     
-    return train_dataloader, test_dataloader
+    return train_dataloader, val_dataloader, test_dataloader
 
 
 def main():
@@ -226,7 +237,7 @@ def main():
     log_save_dir = f'{cf.LOG_ROOT}/{cf.MODEL_NAME}'
     
     # build dataloaders
-    train_dataloader, test_dataloader = build_dataloader_pilot_move()
+    train_dataloader, val_dataloader, test_dataloader = build_dataloader_pilot_move()
     
     # utils
     if os.path.exists(model_save_dir): shutil.rmtree(model_save_dir)
@@ -236,6 +247,7 @@ def main():
     model = model.to(cf.DEVICE)
     logger = SummaryWriter(log_save_dir)
     train_criterion = nn.CrossEntropyLoss()
+    val_criterion = nn.CrossEntropyLoss()
     test_criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     warmup_scheduler = optim.lr_scheduler.LinearLR(optimizer,
@@ -248,11 +260,13 @@ def main():
     
     # train process
     max_f1_score = -1.0
+    best_model = None
     matrices = []
     optimizer.zero_grad()
     tic = time.perf_counter()
     
     for epoch in range(n_epochs):
+        # train model
         if (epoch+1) % cf.GC_STEPS == 0: gc.collect()
         train_loss = 0.0
         data, label = [], []
@@ -275,6 +289,7 @@ def main():
         if cf.AUG_METHOD is not None:
             train_dataloader.augment(method=cf.AUG_METHOD)
         
+        # log lr and train loss
         if (epoch+1) % log_steps == 0:
             train_loss /= len(train_dataloader)
             lr = optimizer.param_groups[0]['lr']
@@ -282,45 +297,38 @@ def main():
             logger.add_scalar('Learning Rate', lr, epoch)
             logger.add_scalar('Train Loss', train_loss, epoch)
             
-        if (epoch+1) % eval_steps == 0:  # test model on testing dataset
-            class_correct = np.zeros(n_classes, dtype=np.int32)
-            class_total = np.zeros(n_classes, dtype=np.int32)
-            matrix = np.zeros((n_classes, n_classes), dtype=np.int32)
-            test_loss = 0.0
-            
+        # validate model on validation dataset
+        if (epoch+1) % eval_steps == 0:
             model.eval()
+            matrix = np.zeros((n_classes, n_classes), dtype=np.int32)
             with torch.no_grad():  
                 data, label = [], []
-                for i, batch in enumerate(test_dataloader):
+                for i, batch in enumerate(val_dataloader):
                     data.append(batch['data'])
                     label.append(batch['label'])
-                    if (i+1) % super_batch != 0 and (i+1) != len(test_dataloader):
+                    if (i+1) % super_batch != 0 and (i+1) != len(val_dataloader):
                         continue
                     data = feature2(torch.concat(data,dim=0).transpose(1,2)).to(cf.DEVICE)
                     label = torch.concat(label, dim=0).to(cf.DEVICE)
                     for j in range(int(np.ceil(data.shape[0]/batch_size))):
                         output: torch.Tensor = model(data[j*batch_size:(j+1)*batch_size,:,:])
                         label_batch = label[j*batch_size:(j+1)*batch_size]
-                        test_loss: torch.Tensor = test_criterion(output, label_batch)
+                        val_loss: torch.Tensor = val_criterion(output, label_batch)
                         _, predicted = torch.max(output, dim=1)
-                        c = (predicted == label_batch)
                         for k in range(len(label_batch)):
                             l = label_batch[k]
                             matrix[l.item(), predicted[k].item()] += 1
-                            is_correct = c[k]
-                            class_correct[l] += is_correct
-                            class_total[l] += 1
                     data, label = [], []
             model.train()
             
             matrices.append(matrix)
-            test_loss /= len(test_dataloader)
+            val_loss /= len(val_dataloader)
             fpr = np.sum(matrix[0,1:]) / np.sum(matrix[0,:])
             recall = np.sum(np.diag(matrix)[1:]) / np.sum(matrix[1:,:])
             precision = np.sum(np.diag(matrix)[1:]) / np.sum(matrix[:,1:])
             f1_score = (2*recall*precision) / (precision+recall)
             acc = np.diag(matrix).sum() / matrix.sum()
-            logger.add_scalar("Test Loss", test_loss, epoch)
+            logger.add_scalar("Validation Loss", val_loss, epoch)
             logger.add_scalar('False Positive Rate', fpr, epoch)
             logger.add_scalar('Recall', recall, epoch)
             logger.add_scalar('Precision', precision, epoch)
@@ -337,16 +345,20 @@ def main():
             print(f'+{"-"*79}+')
             print(f'| False Positive Rate     : {f"{100*fpr:.3f}".rjust(6)} %' + ' '*44 + '|')
             print(f'| Recall                  : {f"{100*recall:.3f}".rjust(6)} %' + ' '*44 + '|')
-            print(f'| F1-score                : {f"{100*f1_score:.3f}".rjust(6)} % ' + ' '*44 + '|')
+            print(f'| F1-score                : {f"{100*f1_score:.3f}".rjust(6)} %' + ' '*44 + '|')
             print(f'+{"-"*79}+')
             
             if f1_score > max_f1_score:
                 max_f1_score = f1_score
+                best_model = copy.deepcopy(model)
                 torch.save(model.state_dict(), os.path.join(model_save_dir, 'best.model'))
-            torch.save(model.state_dict(), os.path.join(model_save_dir, f'{epoch}.model'))
-            
+            if epoch > n_epochs / 2:    # only save last half models
+                torch.save(model.state_dict(), os.path.join(model_save_dir, f'{epoch}.model'))
+         
+    # print general validation metrics   
     toc = time.perf_counter()
     general_matrix = np.mean(matrices[-4:], axis=0)
+    print(f'\n### Validation performance:')
     print(f'General matrix:')
     for i in range(n_classes):
         row = general_matrix[i,:].copy()
@@ -358,12 +370,44 @@ def main():
     precision = np.sum(np.diag(general_matrix)[1:]) / np.sum(general_matrix[:,1:])
     f1_score = (2*recall*precision) / (precision+recall)
     acc = np.sum(np.diag(general_matrix)) / np.sum(general_matrix)
-    print(f'General FPR: {100*fpr:.3f} %')
-    print(f'General recall: {100*recall:.3f} %')
-    print(f'General precision: {100*precision:.3f} %')
-    print(f'General f1-score: {100*f1_score:.3f} %')
-    print(f'General accuracy: {100*acc:.3f} %')
+    print(f'FPR = {100*fpr:.3f}%, Accuracy = {100*acc:.3f}%')
+    print(f'Recall = {100*recall:.3f}%, Precision = {100*precision:.3f}%, F1-score = {100*f1_score:.3f}%')
     print(f'Training time: {toc-tic:.1f} s')
+    
+    # test model on testing dataset
+    best_model.eval()
+    matrix = np.zeros((n_classes, n_classes), dtype=np.int32)
+    with torch.no_grad():  
+        data, label = [], []
+        for i, batch in enumerate(test_dataloader):
+            data.append(batch['data'])
+            label.append(batch['label'])
+            if (i+1) % super_batch != 0 and (i+1) != len(val_dataloader):
+                continue
+            data = feature2(torch.concat(data,dim=0).transpose(1,2)).to(cf.DEVICE)
+            label = torch.concat(label, dim=0).to(cf.DEVICE)
+            for j in range(int(np.ceil(data.shape[0]/batch_size))):
+                output: torch.Tensor = best_model(data[j*batch_size:(j+1)*batch_size,:,:])
+                label_batch = label[j*batch_size:(j+1)*batch_size]
+                _, predicted = torch.max(output, dim=1)
+                for k in range(len(label_batch)):
+                    l = label_batch[k]
+                    matrix[l.item(), predicted[k].item()] += 1
+            data, label = [], []
+    print(f'\n### Test performance:')
+    print(f'Test matrix:')
+    for i in range(n_classes):
+        row = matrix[i,:].copy()
+        row = 100 * row / np.sum(row)
+        print(f'    Accuracy of {class_names[i]:12s}: {row[i]:.2f} % | ', end='')
+        print(' '.join([f'{item:.2f}'.rjust(5) for item in row]))
+    fpr = np.sum(matrix[0,1:]) / np.sum(matrix[0,:])
+    recall = np.sum(np.diag(matrix)[1:]) / np.sum(matrix[1:,:])
+    precision = np.sum(np.diag(matrix)[1:]) / np.sum(matrix[:,1:])
+    f1_score = (2*recall*precision) / (precision+recall)
+    acc = np.sum(np.diag(matrix)) / np.sum(matrix)
+    print(f'FPR = {100*fpr:.3f}%, Accuracy = {100*acc:.3f}%')
+    print(f'Recall = {100*recall:.3f}%, Precision = {100*precision:.3f}%, F1-score = {100*f1_score:.3f}%')
     
 
 if __name__ == '__main__':
