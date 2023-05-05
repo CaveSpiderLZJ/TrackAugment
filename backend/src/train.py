@@ -213,7 +213,6 @@ def build_dataloader_pilot_move() -> Tuple[DataLoader, DataLoader]:
 def main():
     # config parameters
     model = Model4()
-    task_list_id = 'TLnmdi15b8'
     n_classes = cf.N_CLASSES
     class_names = cf.CLASS_NAMES
     n_epochs = cf.N_EPOCHS
@@ -248,8 +247,8 @@ def main():
         schedulers=[warmup_scheduler, train_scheduler], milestones=[warmup_steps])
     
     # train process
-    max_acc = -1.0
-    train_log, accs, matrices = [], [], []
+    max_f1_score = -1.0
+    matrices = []
     optimizer.zero_grad()
     tic = time.perf_counter()
     
@@ -273,25 +272,23 @@ def main():
                 scheduler.step()
                 optimizer.zero_grad()
             data, label = [], []
-        
         if cf.AUG_METHOD is not None:
             train_dataloader.augment(method=cf.AUG_METHOD)
-        train_loss /= len(train_dataloader)
-        lr = optimizer.param_groups[0]['lr']
-        train_log.append({"epoch": epoch, "lr": lr, "loss": train_loss})
         
         if (epoch+1) % log_steps == 0:
+            train_loss /= len(train_dataloader)
+            lr = optimizer.param_groups[0]['lr']
             print(f'epoch: {epoch}, lr: {lr:.3e}, loss: {train_loss:.3e}')
             logger.add_scalar('Learning Rate', lr, epoch)
             logger.add_scalar('Train Loss', train_loss, epoch)
             
         if (epoch+1) % eval_steps == 0:  # test model on testing dataset
-            model.eval()
             class_correct = np.zeros(n_classes, dtype=np.int32)
             class_total = np.zeros(n_classes, dtype=np.int32)
             matrix = np.zeros((n_classes, n_classes), dtype=np.int32)
             test_loss = 0.0
             
+            model.eval()
             with torch.no_grad():  
                 data, label = [], []
                 for i, batch in enumerate(test_dataloader):
@@ -314,21 +311,22 @@ def main():
                             class_correct[l] += is_correct
                             class_total[l] += 1
                     data, label = [], []
-            
-            test_loss /= len(test_dataloader)
-            logger.add_scalar("Test Loss", test_loss, epoch)
             model.train()
+            
             matrices.append(matrix)
-            acc = np.diag(matrix).sum() / matrix.sum()
-            accs.append(acc)
-            if acc > max_acc:
-                max_acc = acc
-                torch.save(model.state_dict(), os.path.join(model_save_dir, 'best.model'))
-            torch.save(model.state_dict(), os.path.join(model_save_dir, f'{epoch}.model'))
+            test_loss /= len(test_dataloader)
             fpr = np.sum(matrix[0,1:]) / np.sum(matrix[0,:])
+            recall = np.sum(np.diag(matrix)[1:]) / np.sum(matrix[1:,:])
+            precision = np.sum(np.diag(matrix)[1:]) / np.sum(matrix[:,1:])
+            f1_score = (2*recall*precision) / (precision+recall)
+            acc = np.diag(matrix).sum() / matrix.sum()
+            logger.add_scalar("Test Loss", test_loss, epoch)
             logger.add_scalar('False Positive Rate', fpr, epoch)
-            recall = np.sum(np.diag(matrix)[1:] / np.sum(matrix[1:,:]))
-            logger.add_scalar('Accuracy of Positive', recall, epoch)
+            logger.add_scalar('Recall', recall, epoch)
+            logger.add_scalar('Precision', precision, epoch)
+            logger.add_scalar('F1-score', f1_score, epoch)
+            logger.add_scalar('Accuracy', acc, epoch)
+            
             print(f'+{"-"*79}+')
             for i in range(n_classes):
                 row = matrix[i,:].copy()
@@ -339,8 +337,14 @@ def main():
             print(f'+{"-"*79}+')
             print(f'| False Positive Rate     : {f"{100*fpr:.3f}".rjust(6)} %' + ' '*44 + '|')
             print(f'| Recall                  : {f"{100*recall:.3f}".rjust(6)} %' + ' '*44 + '|')
+            print(f'| F1-score                : {f"{100*f1_score:.3f}".rjust(6)} % ' + ' '*44 + '|')
             print(f'+{"-"*79}+')
-            logger.add_scalar('Accuracy', acc, epoch)
+            
+            if f1_score > max_f1_score:
+                max_f1_score = f1_score
+                torch.save(model.state_dict(), os.path.join(model_save_dir, 'best.model'))
+            torch.save(model.state_dict(), os.path.join(model_save_dir, f'{epoch}.model'))
+            
     toc = time.perf_counter()
     general_matrix = np.mean(matrices[-4:], axis=0)
     print(f'General matrix:')
@@ -350,10 +354,15 @@ def main():
         print(f'    Accuracy of {class_names[i]:12s}: {row[i]:.2f} % | ', end='')
         print(' '.join([f'{item:.2f}'.rjust(5) for item in row]))
     fpr = np.sum(general_matrix[0,1:]) / np.sum(general_matrix[0,:])
-    recall = np.sum(np.diag(general_matrix)[1:] / np.sum(general_matrix[1:,:]))
+    recall = np.sum(np.diag(general_matrix)[1:]) / np.sum(general_matrix[1:,:])
+    precision = np.sum(np.diag(general_matrix)[1:]) / np.sum(general_matrix[:,1:])
+    f1_score = (2*recall*precision) / (precision+recall)
+    acc = np.sum(np.diag(general_matrix)) / np.sum(general_matrix)
     print(f'General FPR: {100*fpr:.3f} %')
     print(f'General recall: {100*recall:.3f} %')
-    print(f'General acc: {(100*np.mean(accs[-4:])):.1f} %')
+    print(f'General precision: {100*precision:.3f} %')
+    print(f'General f1-score: {100*f1_score:.3f} %')
+    print(f'General accuracy: {100*acc:.3f} %')
     print(f'Training time: {toc-tic:.1f} s')
     
 
