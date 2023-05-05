@@ -33,14 +33,14 @@ CUT_DURATION: float = 2.5       # action duration after cutting (s)
 TRAIN_DURATION: float = 2.0     # action duration for training (s)
 RAND_SAMPLE_EN: bool = True     # whether to randomly sample action data from cut duration to train duration
 RAND_SAMPLE_DURATION: float = 0.2   # the random sample duration range (s), its inverse would be the real-time sample frequency.
-AUG_METHOD: str = 'classic_on_track'          # in {None, 'classic', 'classic_on_track', 'dtw'}
+AUG_METHOD: str = 'classic'          # in {None, 'classic', 'classic_on_track', 'dtw'}
 
 # train
 RAND_SEED = 0
 FS_TRAIN = 100
 MODEL_ROOT = '../data/model'
 LOG_ROOT = '../data/log'
-MODEL_NAME = '149_PilotMove_ScaleZoomTimeWarpMagWarp_epoch1k_lr5e-5'
+MODEL_NAME = '231_PilotMove_ZoomTimeWarpMagWarp_epoch1k_lr5e-5'
 N_CLASSES = 6
 # CLASS_NAMES = ('Negative', 'Raise', 'Drop', 'Shake', 'DoubleShake', 'Flip', 'DoubleFlip')
 CLASS_NAMES = ('Negative', 'Move10cm', 'Move20cm', 'Move30cm', 'Move40cm', 'Move50cm')
