@@ -165,7 +165,7 @@ def build_dataloader_pilot_move() -> Tuple[DataLoader, DataLoader]:
     # insert positive data
     print(f'### Insert positive data.')
     record_info = []
-    for task_name, label in (('Move10cm', 1), ('Move20cm', 2), ('Move30cm', 3), ('Move40cm', 4), ('Move50cm', 5)):
+    for task_name, label in (('Move10cm', 1), ('Move20cm', 2), ('Move30cm', 3), ('Move40cm', 4)):
         for task in task_list['tasks']:
             if task['name'] == task_name: break
         assert task['name'] == task_name
