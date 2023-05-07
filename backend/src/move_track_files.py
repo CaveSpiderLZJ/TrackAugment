@@ -13,7 +13,7 @@ from data_process import augment as aug
 
 RECORD_ROOT = '../data/record'
 TRACK_ROOT = '../data/track'
-TASK_LIST_ID = 'TL3wni1oq3'
+TASK_LIST_ID = 'TL2x95a1ya'
 
 
 def check_track_file_names():
@@ -41,7 +41,7 @@ def check_track_file_names():
 def copy_track_files():
     # get task list
     task_list = fu.load_task_list_with_users(TASK_LIST_ID)
-    task_name_map = {'M10': 'Move10cm', 'M20': 'Move20cm', 'M30': 'Move30cm', 'M40': 'Move40cm', 'M50': 'Move50cm'}
+    task_name_map = {'R45': 'Rotate45', 'R90': 'Rotate90', 'R135': 'Rotate135', 'R180': 'Rotate180'}
     subtask_name_map = {'F': 'Fast', 'M': 'Medium', 'S': 'Slow'}
     # iterate track file paths
     track_file_paths = glob(f'{TRACK_ROOT}/*.csv')
@@ -66,7 +66,7 @@ def copy_track_files():
         
         
 def check_record_files():
-    task_ids = ['TK6qxanwm7', 'TKcgnu2c20', 'TKp59cxeeh', 'TKqqx4moyj', 'TKsql1b33x']
+    task_ids = ['TKqbg40tf9', 'TKqm36t4fq', 'TKh8q3znoh', 'TKy0fbjyum']
     for task_id in task_ids:
         record_paths = glob(f'{RECORD_ROOT}/{TASK_LIST_ID}/{task_id}/ST*/RD*')
         for record_path in record_paths:
@@ -77,35 +77,10 @@ def check_record_files():
                         imu_cnt += 1
                     if file_path.endswith('.csv'):
                         track_cnt += 1
-                if track_cnt != 1 or imu_cnt != 1:
-                    print(f'{record_path}: {track_cnt}, {imu_cnt}')
-    
-
-def check_record_signal():
-    task_id = 'TK5rsia9fw'
-    subtask_id = 'STl3yde7qb'
-    record_id = 'RDqq4s24ot'
-    record_path = fu.get_record_path(TASK_LIST_ID, task_id, subtask_id, record_id)
-    record = Record(record_path, n_sample=20)
-    imu_data = record.imu_data
-    track_data = record.track_data
-    gyro = imu_data['gyro']
-    center_pos = track_data['center_pos']
-    center_rot = track_data['center_rot']
-    marker_pos = track_data['marker_pos']
-    timestamps = track_data['timestamps']
-    # NOTE: should resample track data if FS_TRACK != FS_PREPROCESS
-    axes = aug.calc_local_axes(marker_pos)
-    generated_gyro = aug.track_to_gyro(axes, cf.FS_PREPROCESS)
-    for i in range(3):
-        plt.plot(gyro[:,i])
-    for i in range(3):
-        plt.plot(generated_gyro[:,i])
-    plt.show()
+                print(f'{record_path}: {track_cnt}, {imu_cnt}')
 
 
 if __name__ == '__main__':
     fu.check_cwd()
     copy_track_files()
     check_record_files()
-    # check_record_signal()
