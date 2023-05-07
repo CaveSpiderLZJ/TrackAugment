@@ -467,13 +467,6 @@ def classic_augment(data:np.ndarray, axis:int) -> np.ndarray:
         data = magnitude_warp(data, axis=axis, n_knots=6, std=0.008)
     return data
     '''
-    strategies = np.random.randint(0,8)
-    if strategies in (1, 3, 5, 7):
-        data = scale(data, std=0.05)
-    if strategies in (2, 3, 6, 7):
-        data = time_warp2(data, axis=axis, n_knots=4, std=0.08)
-    if strategies in (4, 5, 6, 7):
-        data = magnitude_warp(data, axis=axis, n_knots=6, std=0.008)
     return data
 
 

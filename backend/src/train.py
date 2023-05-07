@@ -136,17 +136,15 @@ def build_dataloader_study1() -> Tuple[DataLoader, DataLoader]:
     return train_dataloader, test_dataloader
 
 
-def build_dataloader_pilot_move() -> Tuple[DataLoader, DataLoader]:
-    ''' Build train and test dataloader in pilot study for Move.
+def build_dataloader_pilot() -> Tuple[DataLoader, DataLoader]:
+    ''' Build train and test dataloader in PilotRotate
     '''
      # load task_list
-    task_list_id = 'TL3wni1oq3'
+    task_list_id = 'TL2x95a1ya'
     task_list = fu.load_task_list_with_users(task_list_id)
     assert task_list is not None
     
     # build the dataset and dataloader
-    # train_users = ['lzj2', 'lzj4', 'lzj6', 'lzj7', 'lzj8']
-    # test_users = ['lzj', 'lzj3', 'lzj5']
     train_users = ['lzj2', 'lzj4', 'lzj6', 'lzj7']
     val_users = ['lzj', 'lzj8']
     test_users = ['lzj3', 'lzj5']
@@ -165,7 +163,7 @@ def build_dataloader_pilot_move() -> Tuple[DataLoader, DataLoader]:
     # insert positive data
     print(f'### Insert positive data.')
     record_info = []
-    for task_name, label in (('Move10cm', 1), ('Move20cm', 2), ('Move30cm', 3), ('Move40cm', 4)):
+    for task_name, label in (('Rotate45', 1), ('Rotate90', 2), ('Rotate135', 3), ('Rotate180', 4)):
         for task in task_list['tasks']:
             if task['name'] == task_name: break
         assert task['name'] == task_name
@@ -237,7 +235,7 @@ def main():
     log_save_dir = f'{cf.LOG_ROOT}/{cf.MODEL_NAME}'
     
     # build dataloaders
-    train_dataloader, val_dataloader, test_dataloader = build_dataloader_pilot_move()
+    train_dataloader, val_dataloader, test_dataloader = build_dataloader_pilot()
     
     # utils
     if os.path.exists(model_save_dir): shutil.rmtree(model_save_dir)
