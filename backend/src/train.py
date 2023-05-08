@@ -246,7 +246,6 @@ def main():
     logger = SummaryWriter(log_save_dir)
     train_criterion = nn.CrossEntropyLoss()
     val_criterion = nn.CrossEntropyLoss()
-    test_criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     warmup_scheduler = optim.lr_scheduler.LinearLR(optimizer,
         start_factor=1/warmup_steps, end_factor=1.0, total_iters=warmup_steps)
@@ -380,7 +379,7 @@ def main():
         for i, batch in enumerate(test_dataloader):
             data.append(batch['data'])
             label.append(batch['label'])
-            if (i+1) % super_batch != 0 and (i+1) != len(val_dataloader):
+            if (i+1) % super_batch != 0 and (i+1) != len(test_dataloader):
                 continue
             data = feature2(torch.concat(data,dim=0).transpose(1,2)).to(cf.DEVICE)
             label = torch.concat(label, dim=0).to(cf.DEVICE)
