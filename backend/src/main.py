@@ -16,7 +16,6 @@ import file_utils as fu
 from route.route_record import *
 from route.route_root_list import *
 from route.route_tasklist import *
-from route.route_train import *
 from route.route_file import *
 from route.route_dex import *
 
