@@ -86,34 +86,28 @@ def output_track_video(record:Record, save_path:str, start_frame:int, end_frame:
 
 
 def visualize_track_to_imu(record:Record) -> None:
+    idx = 10
     # prepare imu data
-    imu_data = record.imu_data
-    start_imu, end_imu = 0, 6000
-    acc = imu_data['acc']
-    gyro = imu_data['gyro']
+    imu_data = record.cutted_imu_data
+    acc = imu_data['acc'][idx,:,:]
+    gyro = imu_data['gyro'][idx,:,:]
     # prepare track data
-    track_data = record.track_data
-    start_track, end_track = 0, 6000
-    center_pos = track_data['center_pos'][start_track:end_track,:]
-    marker_pos = track_data['marker_pos'][:,start_track:end_track,:]
+    track_data = record.cutted_track_data
+    center_pos = track_data['center_pos'][idx,:,:]
+    marker_pos = track_data['marker_pos'][idx,:,:,:]
     axes = aug.calc_local_axes(marker_pos)
-    generated_acc = aug.track_to_acc(center_pos, axes, cf.FS_PREPROCESS)
-    generated_gyro = aug.track_to_gyro(axes, cf.FS_PREPROCESS)
-    # MSE error
-    mse_acc = aug.mse_error(acc, generated_acc)
-    mse_gyro = aug.mse_error(gyro, generated_gyro)
-    print(f'mse_acc: {mse_acc:.6f}')
-    print(f'mse_gyro: {mse_gyro:.6f}')
+    track_acc = aug.track_to_acc(center_pos, axes, cf.FS_PREPROCESS)
+    track_gyro = aug.track_to_gyro(axes, cf.FS_PREPROCESS)
     # plot acc data
     plt.subplot(2, 1, 1)
     for i in range(3): plt.plot(acc[:,i])
-    for i in range(3): plt.plot(generated_acc[:,i])
+    for i in range(3): plt.plot(track_acc[:,i])
     plt.ylabel('Accelerometer', fontsize=14)
     plt.legend(['X', 'Y', 'Z', 'X\'', 'Y\'', 'Z\''], loc='lower right')
     # plot gyro data
     plt.subplot(2, 1, 2)
     for i in range(3): plt.plot(gyro[:,i])
-    for i in range(3): plt.plot(generated_gyro[:,i])
+    for i in range(3): plt.plot(track_gyro[:,i])
     plt.ylabel('Gyroscope', fontsize=14)
     plt.legend(['X', 'Y', 'Z', 'X\'', 'Y\'', 'Z\''], loc='lower right')
     plt.show()
@@ -873,14 +867,16 @@ def visualize_move_distance():
 if __name__ == '__main__':
     np.random.seed(0)
     fu.check_cwd()
-    task_list_id = 'TL3wni1oq3'
-    task_id = 'TKp59cxeeh'
-    subtask_id = 'STpvm6yoty'
-    record_id = 'RD4ax3nd3l'
+    task_list_id = 'TLm5wv3uex'
+    task_id = 'TKhydju8hc'
+    subtask_id = 'STb7yi4gsq'
+    record_id = 'RDebi44mtx'
     record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
     tic = time.perf_counter()
     record = Record(record_path, n_sample=20)
     toc = time.perf_counter()
     print(f'time: {(toc-tic)*1000:.3f} ms')
     
-    visualize_scale_gyro(record)
+    visualize_track_to_imu(record)
+    
+        

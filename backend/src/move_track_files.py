@@ -13,7 +13,7 @@ from data_process import augment as aug
 
 RECORD_ROOT = '../data/record'
 TRACK_ROOT = '../data/track'
-TASK_LIST_ID = 'TL3wni1oq3'
+TASK_LIST_ID = 'TLm5wv3uex'
 
 
 def check_track_file_names():
@@ -41,7 +41,8 @@ def check_track_file_names():
 def copy_track_files():
     # get task list
     task_list = fu.load_task_list_with_users(TASK_LIST_ID)
-    task_name_map = {'M10': 'Move10cm', 'M20': 'Move20cm', 'M30': 'Move30cm', 'M40': 'Move40cm', 'M50': 'Move50cm'}
+    task_name_map = {'M10': 'Move10', 'M20': 'Move20', 'M30': 'Move30', 'M40': 'Move40',
+        'R45': 'Rotate45', 'R90': 'Rotate90', 'R135': 'Rotate135', 'R180': 'Rotate180'}
     subtask_name_map = {'F': 'Fast', 'M': 'Medium', 'S': 'Slow'}
     # iterate track file paths
     track_file_paths = glob(f'{TRACK_ROOT}/*.csv')
@@ -60,13 +61,14 @@ def copy_track_files():
         if user_name in record_dict:
             record_id = record_dict[user_name]
             record_path = fu.get_record_path(TASK_LIST_ID, task['id'], subtask['id'], record_id)
-            shutil.copy(path, record_path)
+            # shutil.copy(path, record_path)
             print(f'Success: {path}')
         else: print(f'Dst path not exist: {path}')
         
         
 def check_record_files():
-    task_ids = ['TK6qxanwm7', 'TKcgnu2c20', 'TKp59cxeeh', 'TKqqx4moyj', 'TKsql1b33x']
+    task_ids = ['TK4qgr742b', 'TK7mek47cs', 'TK280bz4we', 'TKctpc477k',
+        'TKf2romcyn', 'TKhydju8hc', 'TKlhw651gw', 'TKn1l5v0ns']
     for task_id in task_ids:
         record_paths = glob(f'{RECORD_ROOT}/{TASK_LIST_ID}/{task_id}/ST*/RD*')
         for record_path in record_paths:
@@ -79,33 +81,9 @@ def check_record_files():
                         track_cnt += 1
                 if track_cnt != 1 or imu_cnt != 1:
                     print(f'{record_path}: {track_cnt}, {imu_cnt}')
-    
-
-def check_record_signal():
-    task_id = 'TK5rsia9fw'
-    subtask_id = 'STl3yde7qb'
-    record_id = 'RDqq4s24ot'
-    record_path = fu.get_record_path(TASK_LIST_ID, task_id, subtask_id, record_id)
-    record = Record(record_path, n_sample=20)
-    imu_data = record.imu_data
-    track_data = record.track_data
-    gyro = imu_data['gyro']
-    center_pos = track_data['center_pos']
-    center_rot = track_data['center_rot']
-    marker_pos = track_data['marker_pos']
-    timestamps = track_data['timestamps']
-    # NOTE: should resample track data if FS_TRACK != FS_PREPROCESS
-    axes = aug.calc_local_axes(marker_pos)
-    generated_gyro = aug.track_to_gyro(axes, cf.FS_PREPROCESS)
-    for i in range(3):
-        plt.plot(gyro[:,i])
-    for i in range(3):
-        plt.plot(generated_gyro[:,i])
-    plt.show()
 
 
 if __name__ == '__main__':
     fu.check_cwd()
-    copy_track_files()
+    # copy_track_files()
     check_record_files()
-    # check_record_signal()
