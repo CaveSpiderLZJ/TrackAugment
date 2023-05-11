@@ -86,7 +86,7 @@ def output_track_video(record:Record, save_path:str, start_frame:int, end_frame:
 
 
 def visualize_track_to_imu(record:Record) -> None:
-    idx = 7
+    idx = 10
     # prepare imu data
     imu_data = record.cutted_imu_data
     acc = imu_data['acc'][idx,:,:]
@@ -867,10 +867,10 @@ def visualize_move_distance():
 if __name__ == '__main__':
     np.random.seed(0)
     fu.check_cwd()
-    task_list_id = 'TL2x95a1ya'
-    task_id = 'TKqm36t4fq'
-    subtask_id = 'STh6jwe6mc'
-    record_id = 'RDotfmrfb4'
+    task_list_id = 'TLm5wv3uex'
+    task_id = 'TKhydju8hc'
+    subtask_id = 'STb7yi4gsq'
+    record_id = 'RDebi44mtx'
     record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
     tic = time.perf_counter()
     record = Record(record_path, n_sample=20)
@@ -879,3 +879,4 @@ if __name__ == '__main__':
     
     visualize_track_to_imu(record)
     
+        

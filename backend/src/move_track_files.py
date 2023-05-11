@@ -13,7 +13,7 @@ from data_process import augment as aug
 
 RECORD_ROOT = '../data/record'
 TRACK_ROOT = '../data/track'
-TASK_LIST_ID = 'TL2x95a1ya'
+TASK_LIST_ID = 'TLm5wv3uex'
 
 
 def check_track_file_names():
@@ -41,7 +41,8 @@ def check_track_file_names():
 def copy_track_files():
     # get task list
     task_list = fu.load_task_list_with_users(TASK_LIST_ID)
-    task_name_map = {'R45': 'Rotate45', 'R90': 'Rotate90', 'R135': 'Rotate135', 'R180': 'Rotate180'}
+    task_name_map = {'M10': 'Move10', 'M20': 'Move20', 'M30': 'Move30', 'M40': 'Move40',
+        'R45': 'Rotate45', 'R90': 'Rotate90', 'R135': 'Rotate135', 'R180': 'Rotate180'}
     subtask_name_map = {'F': 'Fast', 'M': 'Medium', 'S': 'Slow'}
     # iterate track file paths
     track_file_paths = glob(f'{TRACK_ROOT}/*.csv')
@@ -60,13 +61,14 @@ def copy_track_files():
         if user_name in record_dict:
             record_id = record_dict[user_name]
             record_path = fu.get_record_path(TASK_LIST_ID, task['id'], subtask['id'], record_id)
-            shutil.copy(path, record_path)
+            # shutil.copy(path, record_path)
             print(f'Success: {path}')
         else: print(f'Dst path not exist: {path}')
         
         
 def check_record_files():
-    task_ids = ['TKqbg40tf9', 'TKqm36t4fq', 'TKh8q3znoh', 'TKy0fbjyum']
+    task_ids = ['TK4qgr742b', 'TK7mek47cs', 'TK280bz4we', 'TKctpc477k',
+        'TKf2romcyn', 'TKhydju8hc', 'TKlhw651gw', 'TKn1l5v0ns']
     for task_id in task_ids:
         record_paths = glob(f'{RECORD_ROOT}/{TASK_LIST_ID}/{task_id}/ST*/RD*')
         for record_path in record_paths:
@@ -77,10 +79,11 @@ def check_record_files():
                         imu_cnt += 1
                     if file_path.endswith('.csv'):
                         track_cnt += 1
-                print(f'{record_path}: {track_cnt}, {imu_cnt}')
+                if track_cnt != 1 or imu_cnt != 1:
+                    print(f'{record_path}: {track_cnt}, {imu_cnt}')
 
 
 if __name__ == '__main__':
     fu.check_cwd()
-    copy_track_files()
+    # copy_track_files()
     check_record_files()
