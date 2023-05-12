@@ -136,21 +136,24 @@ def build_dataloader_study1() -> Tuple[DataLoader, DataLoader]:
     return train_dataloader, test_dataloader
 
 
-def build_dataloader_pilot() -> Tuple[DataLoader, DataLoader]:
+def build_dataloader() -> Tuple[DataLoader, DataLoader]:
     ''' Build train and test dataloader in PilotRotate
     '''
      # load task_list
-    task_list_id = 'TL2x95a1ya'
+    task_list_id = 'TLm5wv3uex'
     task_list = fu.load_task_list_with_users(task_list_id)
     assert task_list is not None
     
     # build the dataset and dataloader
-    train_users = ['lzj2', 'lzj4', 'lzj6', 'lzj7']
-    val_users = ['lzj', 'lzj8']
-    test_users = ['lzj3', 'lzj5']
-    train_days = [1]
-    val_days = [2]
-    test_days = [3]
+    # train_users = ['qp', 'fqj', 'zqy', 'lhs', 'hr', 'xq', 'lxt', 'gsq', 'lzj', 'wxy', 'lc', 'fhy', 'cr']
+    # val_users = ['qwp', 'lst', 'lyf', 'mfj']
+    # test_users = ['wxb', 'hz', 'hjp', 'cjy']
+    train_users = ['qp', 'fqj', 'zqy', 'lhs', 'hr', 'xq']
+    val_users = ['qwp', 'lst']
+    test_users = ['wxb', 'hz']
+    train_days = [1, 2, 3]
+    val_days = [4]
+    test_days = [6]
     train_negative_paths, val_negative_paths, test_negative_paths = [], [], []
     for day in train_days:
         train_negative_paths.extend(glob(f'../data/negative/day{day}/*.pkl'))
@@ -163,7 +166,7 @@ def build_dataloader_pilot() -> Tuple[DataLoader, DataLoader]:
     # insert positive data
     print(f'### Insert positive data.')
     record_info = []
-    for task_name, label in (('Rotate45', 1), ('Rotate90', 2), ('Rotate135', 3), ('Rotate180', 4)):
+    for task_name, label in zip(cf.CLASS_NAMES[1:], (1, 2, 3, 4)):
         for task in task_list['tasks']:
             if task['name'] == task_name: break
         assert task['name'] == task_name
@@ -235,7 +238,7 @@ def main():
     log_save_dir = f'{cf.LOG_ROOT}/{cf.MODEL_NAME}'
     
     # build dataloaders
-    train_dataloader, val_dataloader, test_dataloader = build_dataloader_pilot()
+    train_dataloader, val_dataloader, test_dataloader = build_dataloader()
     
     # utils
     if os.path.exists(model_save_dir): shutil.rmtree(model_save_dir)
