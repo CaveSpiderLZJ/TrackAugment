@@ -377,7 +377,6 @@ def visualize_cutter(record:Record):
     print(f'gyro: {cutted_imu_data["gyro"].shape}')
     cutted_track_data = record.cutted_track_data
     print(f'center_pos: {cutted_track_data["center_pos"].shape}')
-    print(f'center_rot: {cutted_track_data["center_rot"].shape}')
     print(f'marker_pos: {cutted_track_data["marker_pos"].shape}')
     
     
@@ -868,9 +867,9 @@ if __name__ == '__main__':
     np.random.seed(0)
     fu.check_cwd()
     task_list_id = 'TLm5wv3uex'
-    task_id = 'TKhydju8hc'
-    subtask_id = 'STb7yi4gsq'
-    record_id = 'RDebi44mtx'
+    task_id = 'TK7mek47cs'
+    subtask_id = 'STu1wy07jb'
+    record_id = 'RDpcwcz2lh'
     record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
     tic = time.perf_counter()
     record = Record(record_path, n_sample=20)

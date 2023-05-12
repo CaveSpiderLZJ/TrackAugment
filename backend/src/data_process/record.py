@@ -47,10 +47,6 @@ class Record:
             np.float32) for axis in ('X', 'Y', 'Z')]
         center_pos = 1e-3 * np.column_stack(center_pos) # mm -> m
         center_pos[np.isnan(center_pos)] = 0.0
-        center_rot = [track_data[('SmartPhone', 'Rotation', axis)].to_numpy(
-            np.float32) for axis in ('X', 'Y', 'Z', 'W')]
-        center_rot = np.column_stack(center_rot)
-        center_rot[np.isnan(center_rot)] = 1.0
         marker_pos = []
         for i in range(1,7):
             pos = [track_data[(f'SmartPhone:Marker{i}', 'Position', axis)].to_numpy(
@@ -77,12 +73,13 @@ class Record:
         self.valid_mask = valid_mask
         f_center_pos = interp.interp1d(timestamps[valid_mask], center_pos[valid_mask,:],
             kind='cubic', axis=0, fill_value=0.0, bounds_error=False)
-        f_center_rot = interp.interp1d(timestamps[valid_mask], center_rot[valid_mask,:],
-            kind='cubic', axis=0, fill_value=1.0, bounds_error=False)
         f_marker_pos = interp.interp1d(timestamps[valid_mask], marker_pos[:,valid_mask,:],
             kind='cubic', axis=1, fill_value=0.0, bounds_error=False)
-        self.track_data = {'timestamps': timestamps, 'center_pos': f_center_pos(timestamps),
-            'center_rot': f_center_rot(timestamps), 'marker_pos': f_marker_pos(timestamps)}
+        center_pos = f_center_pos(timestamps)
+        marker_pos = f_marker_pos(timestamps)
+        axes = aug.calc_local_axes(marker_pos)
+        self.track_data = {'timestamps': timestamps, 'center_pos': center_pos,
+            'marker_pos': marker_pos, 'axes': axes}
         
     
     def load_imu_data(self):
@@ -163,15 +160,14 @@ class Record:
         gyro = imu_data['gyro']
         track_data = self.track_data
         center_pos = track_data['center_pos']
-        center_rot = track_data['center_rot']
         marker_pos = track_data['marker_pos']
+        axes = track_data['axes']
         timestamps = track_data['timestamps']
         # NOTE: should resample track data if FS_TRACK != FS_PREPROCESS
         step, length = 10, 1200
         len_track = center_pos.shape[0]
         len_gyro = gyro.shape[0]
-        axes = aug.calc_local_axes(marker_pos[:,:len_track-len_gyro+length,:])
-        generated_gyro = aug.track_to_gyro(axes, cf.FS_PREPROCESS)
+        generated_gyro = aug.track_to_gyro(axes[:,:len_track-len_gyro+length, :], cf.FS_PREPROCESS)
         min_err, off = 1e30, 0
         for i in range(0, len_track - len_gyro, step):
             err = np.mean(np.abs(generated_gyro[i:i+length] - gyro[:length]))
@@ -180,7 +176,7 @@ class Record:
             err = np.mean(np.abs(generated_gyro[i:i+length] - gyro[:length]))
             if err < min_err: min_err, off = err, i
         self.track_data = {'timestamps': timestamps[off:off+len_gyro], 'center_pos': center_pos[off:off+len_gyro,:],
-            'center_rot': center_rot[off:off+len_gyro,:], 'marker_pos': marker_pos[:,off:off+len_gyro,:]}
+            'marker_pos': marker_pos[:,off:off+len_gyro,:], 'axes': axes[:,off:off+len_gyro,:]}
         
     
     def cut_data(self):
@@ -208,8 +204,8 @@ class Record:
         if self.track_path is not None:
             self.cutted_track_data = {
                 'center_pos': np.row_stack([track_data['center_pos'][None,l:r,:] for l, r in cut_ranges]),
-                'center_rot': np.row_stack([track_data['center_rot'][None,l:r,:] for l, r in cut_ranges]),
-                'marker_pos': np.row_stack([track_data['marker_pos'][None,:,l:r,:] for l, r in cut_ranges])}
+                'marker_pos': np.row_stack([track_data['marker_pos'][None,:,l:r,:] for l, r in cut_ranges]),
+                'axes': np.row_stack([track_data['axes'][None,:,l:r,:] for l, r in cut_ranges])}
         else: self.cutted_track_data = None
 
 
