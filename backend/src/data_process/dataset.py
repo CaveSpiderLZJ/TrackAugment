@@ -20,7 +20,7 @@ class Dataset(torch.utils.data.Dataset):
         ''' Init the dataset data structures.
         '''
         self.size = 0
-        self.raw_track_data = {'center_pos': [], 'center_rot': [], 'marker_pos': []}    #=\
+        self.raw_track_data = {'center_pos': [], 'marker_pos': [], 'axes': []}          #=\
         self.raw_imu_data = {'acc': [], 'gyro': []}                                     #=| positive data
         self.track2imu_data = {'acc': [], 'gyro': []}                                   #=|
         self.raw_positive_labels = []                                                   #=/
@@ -84,17 +84,16 @@ class Dataset(torch.utils.data.Dataset):
         # insert track data
         cutted_track_data = record.cutted_track_data
         center_pos = cutted_track_data['center_pos'][clean_mask,:,:]
-        center_rot = cutted_track_data['center_rot'][clean_mask,:,:]
         marker_pos = cutted_track_data['marker_pos'][clean_mask,:,:,:]
+        axes = cutted_track_data['axes'][clean_mask,:,:,:]
         self.raw_track_data['center_pos'].append(center_pos)
-        self.raw_track_data['center_rot'].append(center_rot)
         self.raw_track_data['marker_pos'].append(marker_pos)
+        self.raw_track_data['axes'].append(axes)
         # insert track2imu data
         track_acc, track_gyro = [], []
         for i in range(cnt):
-            axes = aug.calc_local_axes(marker_pos[i,:,:,:])
-            track_acc.append(aug.track_to_acc(center_pos[i,:,:], axes, fs=cf.FS_PREPROCESS)[None,:,:])
-            track_gyro.append(aug.track_to_gyro(axes, fs=cf.FS_PREPROCESS)[None,:,:])
+            track_acc.append(aug.track_to_acc(center_pos[i,:,:], axes[i,:,:,:], fs=cf.FS_PREPROCESS)[None,:,:])
+            track_gyro.append(aug.track_to_gyro(axes[i,:,:,:], fs=cf.FS_PREPROCESS)[None,:,:])
         self.track2imu_data['acc'].append(np.concatenate(track_acc, axis=0))
         self.track2imu_data['gyro'].append(np.concatenate(track_gyro, axis=0))
         # insert labels
@@ -124,30 +123,28 @@ class Dataset(torch.utils.data.Dataset):
         # insert track data
         cutted_track_data = record.cutted_track_data
         center_pos_raise = cutted_track_data['center_pos'][raise_indices,:,:][raise_mask,:,:]
-        center_rot_raise = cutted_track_data['center_rot'][raise_indices,:,:][raise_mask,:,:]
         marker_pos_raise = cutted_track_data['marker_pos'][raise_indices,:,:,:][raise_mask,:,:,:]
+        axes_raise = cutted_track_data['axes'][raise_indices,:,:,:][raise_mask,:,:,:]
         center_pos_drop = cutted_track_data['center_pos'][drop_indices,:,:][drop_mask,:,:]
-        center_rot_drop = cutted_track_data['center_rot'][drop_indices,:,:][drop_mask,:,:]
         marker_pos_drop = cutted_track_data['marker_pos'][drop_indices,:,:,:][drop_mask,:,:,:]
+        axes_drop = cutted_track_data['axes'][drop_indices,:,:,:][drop_mask,:,:,:]
         self.raw_track_data['center_pos'].append(center_pos_raise)
-        self.raw_track_data['center_rot'].append(center_rot_raise)
         self.raw_track_data['marker_pos'].append(marker_pos_raise)
+        self.raw_track_data['axes'].append(axes_raise)
         self.raw_track_data['center_pos'].append(center_pos_drop)
-        self.raw_track_data['center_rot'].append(center_rot_drop)
         self.raw_track_data['marker_pos'].append(marker_pos_drop)
+        self.raw_track_data['axes'].append(axes_drop)
         # insert track2imu data
         track_acc, track_gyro = [], []
         for i in range(center_pos_raise.shape[0]):
-            axes = aug.calc_local_axes(marker_pos_raise[i,:,:,:])
-            track_acc.append(aug.track_to_acc(center_pos_raise[i,:,:], axes, fs=cf.FS_PREPROCESS)[None,:,:])
-            track_gyro.append(aug.track_to_gyro(axes, fs=cf.FS_PREPROCESS)[None,:,:])
+            track_acc.append(aug.track_to_acc(center_pos_raise[i,:,:], axes_raise[i,:,:,:], fs=cf.FS_PREPROCESS)[None,:,:])
+            track_gyro.append(aug.track_to_gyro(axes_raise[i,:,:,:], fs=cf.FS_PREPROCESS)[None,:,:])
         self.track2imu_data['acc'].append(np.concatenate(track_acc, axis=0))
         self.track2imu_data['gyro'].append(np.concatenate(track_gyro, axis=0))
         track_acc, track_gyro = [], []
         for i in range(center_pos_drop.shape[0]):
-            axes = aug.calc_local_axes(marker_pos_drop[i,:,:,:])
-            track_acc.append(aug.track_to_acc(center_pos_drop[i,:,:], axes, fs=cf.FS_PREPROCESS)[None,:,:])
-            track_gyro.append(aug.track_to_gyro(axes, fs=cf.FS_PREPROCESS)[None,:,:])
+            track_acc.append(aug.track_to_acc(center_pos_drop[i,:,:], axes_drop[i,:,:,:], fs=cf.FS_PREPROCESS)[None,:,:])
+            track_gyro.append(aug.track_to_gyro(axes_drop[i,:,:,:], fs=cf.FS_PREPROCESS)[None,:,:])
         self.track2imu_data['acc'].append(np.concatenate(track_acc, axis=0))
         self.track2imu_data['gyro'].append(np.concatenate(track_gyro, axis=0))
         # insert labels
@@ -185,19 +182,19 @@ class Dataset(torch.utils.data.Dataset):
                 augmented_imu_data.append(np.concatenate(imu_list, axis=0))
                 augmented_labels.append(labels)
         elif method == 'classic_on_track':
-            for center_pos_batch, marker_pos_batch, labels in zip(self.raw_track_data['center_pos'],
-                self.raw_track_data['marker_pos'], self.raw_positive_labels):
+            for center_pos_batch, axes_batch, labels in zip(self.raw_track_data['center_pos'],
+                self.raw_track_data['axes'], self.raw_positive_labels):
                 N = labels.shape[0]
                 imu_list = []
                 for i in range(N):
                     imu = aug.classic_augment_on_track(
-                        center_pos_batch[i,:,:], marker_pos_batch[i,:,:,:])
+                        center_pos_batch[i,:,:], axes_batch[i,:,:,:])
                     imu_list.append(imu[None,:,:])
                 augmented_imu_data.append(np.concatenate(imu_list, axis=0))
                 augmented_labels.append(labels)
         elif method == 'dtw':       # dtw based augmentation on track data
-            for center_pos, marker_pos, labels in zip(self.raw_track_data['center_pos'],
-                self.raw_track_data['marker_pos'], self.raw_positive_labels):
+            for center_pos, axes, labels in zip(self.raw_track_data['center_pos'],
+                self.raw_track_data['axes'], self.raw_positive_labels):
                 N, T = center_pos.shape[0], center_pos.shape[1]
                 dcenter_pos = np.diff(center_pos, axis=1, append=center_pos[:,-1:,:])
                 imu_list = []
@@ -209,11 +206,10 @@ class Dataset(torch.utils.data.Dataset):
                         dcenter_pos[idx,:,:], axis=0, window=int(1.0*cf.FS_PREPROCESS))
                     augmented_center_pos = aug.dtw_augment(center_pos[i,:,:],
                         center_pos[idx,:,:], warping_path, axis=0, weight=weight)
-                    augmented_marker_pos = aug.dtw_augment(marker_pos[i,:,:,:],
-                        marker_pos[idx,:,:,:], warping_path, axis=1, weight=weight)
-                    axes = aug.calc_local_axes(augmented_marker_pos)
-                    acc = aug.track_to_acc(augmented_center_pos, axes, fs=cf.FS_PREPROCESS)
-                    gyro = aug.track_to_gyro(axes, fs=cf.FS_PREPROCESS)
+                    augmented_axes = aug.dtw_augment(axes[i,:,:,:],
+                        axes[idx,:,:,:], warping_path, axis=1, weight=weight)
+                    acc = aug.track_to_acc(augmented_center_pos, augmented_axes, fs=cf.FS_PREPROCESS)
+                    gyro = aug.track_to_gyro(augmented_axes, fs=cf.FS_PREPROCESS)
                     imu_list.append(np.concatenate([acc, gyro], axis=1)[None,:,:])
                 augmented_imu_data.append(np.concatenate(imu_list, axis=0))
                 augmented_labels.append(labels)

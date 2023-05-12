@@ -57,4 +57,5 @@ WARMUP_STEPS = 10
 LOG_STEPS = 1
 EVAL_STEPS = 5
 GC_STEPS = 4
+AUGMENT_STEPS = 2
 DEVICE = torch.device('cuda')

@@ -286,7 +286,7 @@ def main():
                 scheduler.step()
                 optimizer.zero_grad()
             data, label = [], []
-        if cf.AUG_METHOD is not None:
+        if cf.AUG_METHOD is not None and (epoch+1) % cf.AUGMENT_STEPS == 0:
             train_dataloader.augment(method=cf.AUG_METHOD)
         
         # log lr and train loss
@@ -415,4 +415,11 @@ if __name__ == '__main__':
     np.random.seed(cf.RAND_SEED)
     torch.manual_seed(cf.RAND_SEED)
     fu.check_cwd()
-    main()
+    # main()
+    train_dataloader, _, _ = build_dataloader()
+    tic = time.perf_counter()
+    train_dataloader.augment(method=cf.AUG_METHOD)
+    toc = time.perf_counter()
+    print(f'time cost: {(toc-tic)*1000:.3f} ms')
+    
+    
