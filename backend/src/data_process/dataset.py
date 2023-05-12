@@ -177,7 +177,8 @@ class Dataset(torch.utils.data.Dataset):
                 N = labels.shape[0]
                 imu_list = []
                 for i in range(N):
-                    imu = aug.classic_augment(np.concatenate([acc[i,:,:], gyro[i,:,:]], axis=1), axis=0)
+                    imu = aug.classic_augment(np.concatenate([acc[i,:,:], gyro[i,:,:]],
+                        axis=1), axis=0, strategies=strategies)
                     imu_list.append(imu[None,:,:])
                 augmented_imu_data.append(np.concatenate(imu_list, axis=0))
                 augmented_labels.append(labels)
@@ -188,7 +189,7 @@ class Dataset(torch.utils.data.Dataset):
                 imu_list = []
                 for i in range(N):
                     imu = aug.classic_augment_on_track(
-                        center_pos_batch[i,:,:], axes_batch[i,:,:,:])
+                        center_pos_batch[i,:,:], axes_batch[i,:,:,:], strategies=strategies)
                     imu_list.append(imu[None,:,:])
                 augmented_imu_data.append(np.concatenate(imu_list, axis=0))
                 augmented_labels.append(labels)

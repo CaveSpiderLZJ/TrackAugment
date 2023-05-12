@@ -31,7 +31,7 @@ def worker_init_fn(worker_id:int):
     np.random.seed(cf.RAND_SEED + worker_id)
     
     
-def build_dataloader_study1() -> Tuple[DataLoader, DataLoader]:
+def build_dataloader_study1(aug_method:str, strategies:dict) -> Tuple[DataLoader, DataLoader]:
     ''' Build train and test dataloader in study-1.
     '''
     # load task_list
@@ -127,7 +127,7 @@ def build_dataloader_study1() -> Tuple[DataLoader, DataLoader]:
         negative_data = np.concatenate(negative_data, axis=0)
         test_dataset.insert_negativa_data(negative_data, label=0)
     
-    train_dataset.augment(method=cf.AUG_METHOD)
+    train_dataset.augment(method=aug_method, strategies=strategies)
     test_dataset.augment(method=None)
     train_dataloader = DataLoader(train_dataset, batch_size=cf.batch_size,
         shuffle=True, pin_memory=True, num_workers=0, worker_init_fn=worker_init_fn)
@@ -137,7 +137,7 @@ def build_dataloader_study1() -> Tuple[DataLoader, DataLoader]:
     return train_dataloader, test_dataloader
 
 
-def build_dataloader() -> Tuple[DataLoader, DataLoader]:
+def build_dataloader(aug_method:str, strategies:dict) -> Tuple[DataLoader, DataLoader]:
     ''' Build train and test dataloader in PilotRotate
     '''
      # load task_list
@@ -207,7 +207,7 @@ def build_dataloader() -> Tuple[DataLoader, DataLoader]:
             negative_data.append(pickle.load(open(path, 'rb'))[None,:W,:])
         test_dataset.insert_negativa_data(np.concatenate(negative_data, axis=0), label=0)
     
-    train_dataset.augment(method=cf.AUG_METHOD)
+    train_dataset.augment(method=aug_method, strategies=strategies)
     val_dataset.augment(method=None)
     test_dataset.augment(method=None)
     train_dataloader = DataLoader(train_dataset, batch_size=cf.BATCH_SIZE,
@@ -233,10 +233,11 @@ def main(model_name:str, plan:dict):
     log_steps = cf.LOG_STEPS
     eval_steps = cf.EVAL_STEPS
     model_save_dir = f'{cf.MODEL_ROOT}/{model_name}'
-    log_save_dir = f'{cf.LOG_ROOT}/{cf.model_name}'
+    log_save_dir = f'{cf.LOG_ROOT}/{model_name}'
+    output_path = f'{cf.OUTPUT_ROOT}/{cf.PLAN_NAME}/{model_name}.txt'
     
     # build dataloaders
-    train_dataloader, val_dataloader, test_dataloader = build_dataloader()
+    train_dataloader, val_dataloader, test_dataloader = build_dataloader(plan['method'], strategies=plan['strategies'])
     
     # utils
     if os.path.exists(model_save_dir): shutil.rmtree(model_save_dir)
@@ -284,8 +285,8 @@ def main(model_name:str, plan:dict):
                 scheduler.step()
                 optimizer.zero_grad()
             data, label = [], []
-        if cf.AUG_METHOD is not None and (epoch+1) % cf.AUGMENT_STEPS == 0:
-            train_dataloader.augment(method=cf.AUG_METHOD)
+        if plan['method'] is not None and (epoch+1) % cf.AUGMENT_STEPS == 0:
+            train_dataloader.augment(method=plan['method'], strategies=plan['strategies'])
         
         # log lr and train loss
         if (epoch+1) % log_steps == 0:
@@ -352,25 +353,27 @@ def main(model_name:str, plan:dict):
                 torch.save(model.state_dict(), os.path.join(model_save_dir, 'best.model'))
             if epoch > n_epochs / 2:    # only save last half models
                 torch.save(model.state_dict(), os.path.join(model_save_dir, f'{epoch}.model'))
+                
+    fout = open(output_path, 'w')
          
-    # print general validation metrics   
+    # output general validation metrics   
     toc = time.perf_counter()
     general_matrix = np.mean(matrices[-4:], axis=0)
-    print(f'\n### Validation performance:')
-    print(f'General matrix:')
+    fout.write(f'### Validation performance:\n')
+    fout.write(f'General matrix:\n')
     for i in range(n_classes):
         row = general_matrix[i,:].copy()
         row = 100 * row / np.sum(row)
-        print(f'    Accuracy of {class_names[i]:12s}: {row[i]:.2f} % | ', end='')
-        print(' '.join([f'{item:.2f}'.rjust(5) for item in row]))
+        fout.write(f'    Accuracy of {class_names[i]:12s}: {row[i]:.2f} % | ')
+        fout.write(' '.join([f'{item:.2f}'.rjust(5) for item in row]) + '\n')
     fpr = np.sum(general_matrix[0,1:]) / np.sum(general_matrix[0,:])
     recall = np.sum(np.diag(general_matrix)[1:]) / np.sum(general_matrix[1:,:])
     precision = np.sum(np.diag(general_matrix)[1:]) / np.sum(general_matrix[:,1:])
     f1_score = (2*recall*precision) / (precision+recall)
     acc = np.sum(np.diag(general_matrix)) / np.sum(general_matrix)
-    print(f'FPR = {100*fpr:.3f}%, Accuracy = {100*acc:.3f}%')
-    print(f'Recall = {100*recall:.3f}%, Precision = {100*precision:.3f}%, F1-score = {100*f1_score:.3f}%')
-    print(f'Training time: {toc-tic:.1f} s')
+    fout.write(f'FPR = {100*fpr:.3f}%, Accuracy = {100*acc:.3f}%\n')
+    fout.write(f'Recall = {100*recall:.3f}%, Precision = {100*precision:.3f}%, F1-score = {100*f1_score:.3f}%\n')
+    fout.write(f'Training time: {toc-tic:.1f} s\n')
     
     # test model on testing dataset
     best_model.eval()
@@ -392,32 +395,34 @@ def main(model_name:str, plan:dict):
                     l = label_batch[k]
                     matrix[l.item(), predicted[k].item()] += 1
             data, label = [], []
-    print(f'\n### Test performance:')
-    print(f'Test matrix:')
+    fout.write(f'\n### Test performance:\n')
+    fout.write(f'Test matrix:\n')
     for i in range(n_classes):
         row = matrix[i,:].copy()
         row = 100 * row / np.sum(row)
-        print(f'    Accuracy of {class_names[i]:12s}: {row[i]:.2f} % | ', end='')
-        print(' '.join([f'{item:.2f}'.rjust(5) for item in row]))
+        fout.write(f'    Accuracy of {class_names[i]:12s}: {row[i]:.2f} % | ')
+        fout.write(' '.join([f'{item:.2f}'.rjust(5) for item in row]) + '\n')
     fpr = np.sum(matrix[0,1:]) / np.sum(matrix[0,:])
     recall = np.sum(np.diag(matrix)[1:]) / np.sum(matrix[1:,:])
     precision = np.sum(np.diag(matrix)[1:]) / np.sum(matrix[:,1:])
     f1_score = (2*recall*precision) / (precision+recall)
     acc = np.sum(np.diag(matrix)) / np.sum(matrix)
-    print(f'FPR = {100*fpr:.3f}%, Accuracy = {100*acc:.3f}%')
-    print(f'Recall = {100*recall:.3f}%, Precision = {100*precision:.3f}%, F1-score = {100*f1_score:.3f}%')
+    fout.write(f'FPR = {100*fpr:.3f}%, Accuracy = {100*acc:.3f}%\n')
+    fout.write(f'Recall = {100*recall:.3f}%, Precision = {100*precision:.3f}%, F1-score = {100*f1_score:.3f}%\n')
+    fout.close()
     
 
 if __name__ == '__main__':
-    random.seed(cf.RAND_SEED)
-    np.random.seed(cf.RAND_SEED)
-    torch.manual_seed(cf.RAND_SEED)
     fu.check_cwd()
-    
-    train_plan = json.load(open(f'../data/plan/Move_TimeWarpTrack.json', 'r'))
+    plan_path = f'{cf.PLAN_ROOT}/{cf.PLAN_NAME}.json'
+    train_plan = json.load(open(plan_path, 'r'))
+    output_dir = f'{cf.OUTPUT_ROOT}/{cf.PLAN_NAME}'
+    if os.path.exists(output_dir): shutil.rmtree(output_dir)
+    os.makedirs(output_dir)
     for model_name, plan in train_plan.items():
-        print(model_name)
-        print(plan)
-    # main()
+        random.seed(cf.RAND_SEED)
+        np.random.seed(cf.RAND_SEED)
+        torch.manual_seed(cf.RAND_SEED)
+        main(model_name, plan)
     
     
