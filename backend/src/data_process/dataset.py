@@ -164,7 +164,7 @@ class Dataset(torch.utils.data.Dataset):
         self.raw_negative_labels.append(np.zeros(cnt, dtype=np.int64) + label)
         
         
-    def augment(self, method:str=None) -> None:
+    def augment(self, method:str=None, strategies:dict=None) -> None:
         ''' Use raw data to generate augmented imu data.
         args:
             method: str, in {None, 'classic', 'dtw'}

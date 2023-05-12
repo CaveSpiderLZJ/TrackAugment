@@ -460,11 +460,12 @@ def dtw_augment(data1:np.ndarray, data2:np.ndarray,
     return x * weight + y * (1-weight)
 
 
-def classic_augment(data:np.ndarray, axis:int) -> np.ndarray:
+def classic_augment(data:np.ndarray, axis:int, strategies:dict=None) -> np.ndarray:
     ''' Combine Zoom, Scale and Time Warp.
     args:  
         data: np.ndarray, of any shape, data to be augmented.
         axis: int, the time series axis.
+        strategies: dict, the augment strategy config.
     '''
     
     ''' compelete algorithm
@@ -479,6 +480,10 @@ def classic_augment(data:np.ndarray, axis:int) -> np.ndarray:
         data = magnitude_warp(data, axis=axis, n_knots=6, std=0.008)
     return data
     '''
+    if strategies is None: return data
+    for strategy, param_dict in strategies.items():
+        rand = np.random.rand()
+        if rand > param_dict['prob']: continue
     return data
 
 
@@ -516,12 +521,9 @@ def classic_augment_on_track(center_pos:np.ndarray, axes:np.ndarray) -> np.ndarr
     return np.concatenate([acc, gyro], axis=1)
     '''
     
-    params = scale_params(std=0.002)
-    center_pos = scale(center_pos, params=params)
-    q = axes.transpose(1, 2, 0)
-    delta_q = np.matmul(q[0,:,:].transpose()[None,:,:], q)    
-    scaled_rot_vec = scale(Rotation.from_matrix(delta_q).as_rotvec(), params=params)
-    axes = np.matmul(q[0:1,:,:], Rotation.from_rotvec(scaled_rot_vec).as_matrix()).transpose(2,0,1)
+    params = zoom_params(low=0.7)
+    center_pos = zoom(center_pos, axis=0, params=params)
+    axes = zoom(axes, axis=1, params=params)
         
     acc = track_to_acc(center_pos, axes, fs=cf.FS_PREPROCESS)
     gyro = track_to_gyro(axes, fs=cf.FS_PREPROCESS)

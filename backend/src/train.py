@@ -3,6 +3,7 @@ import gc
 import copy
 import tqdm
 import time
+import json
 import shutil
 import pickle
 import random
@@ -145,12 +146,9 @@ def build_dataloader() -> Tuple[DataLoader, DataLoader]:
     assert task_list is not None
     
     # build the dataset and dataloader
-    # train_users = ['qp', 'fqj', 'zqy', 'lhs', 'hr', 'xq', 'lxt', 'gsq', 'lzj', 'wxy', 'lc', 'fhy', 'cr']
-    # val_users = ['qwp', 'lst', 'lyf', 'mfj']
-    # test_users = ['wxb', 'hz', 'hjp', 'cjy']
-    train_users = ['qp', 'fqj', 'zqy', 'lhs', 'hr', 'xq']
-    val_users = ['qwp', 'lst']
-    test_users = ['wxb', 'hz']
+    train_users = ['qp', 'fqj', 'zqy', 'lhs', 'hr', 'xq', 'lxt', 'gsq', 'lzj', 'wxy', 'lc', 'fhy', 'cr']
+    val_users = ['qwp', 'lst', 'lyf', 'mfj']
+    test_users = ['wxb', 'hz', 'hjp', 'cjy']
     train_days = [1, 2, 3]
     val_days = [4]
     test_days = [6]
@@ -222,7 +220,7 @@ def build_dataloader() -> Tuple[DataLoader, DataLoader]:
     return train_dataloader, val_dataloader, test_dataloader
 
 
-def main():
+def main(model_name:str, plan:dict):
     # config parameters
     model = Model4()
     n_classes = cf.N_CLASSES
@@ -234,8 +232,8 @@ def main():
     warmup_steps = cf.WARMUP_STEPS
     log_steps = cf.LOG_STEPS
     eval_steps = cf.EVAL_STEPS
-    model_save_dir = f'{cf.MODEL_ROOT}/{cf.MODEL_NAME}'
-    log_save_dir = f'{cf.LOG_ROOT}/{cf.MODEL_NAME}'
+    model_save_dir = f'{cf.MODEL_ROOT}/{model_name}'
+    log_save_dir = f'{cf.LOG_ROOT}/{cf.model_name}'
     
     # build dataloaders
     train_dataloader, val_dataloader, test_dataloader = build_dataloader()
@@ -415,11 +413,11 @@ if __name__ == '__main__':
     np.random.seed(cf.RAND_SEED)
     torch.manual_seed(cf.RAND_SEED)
     fu.check_cwd()
+    
+    train_plan = json.load(open(f'../data/plan/Move_TimeWarpTrack.json', 'r'))
+    for model_name, plan in train_plan.items():
+        print(model_name)
+        print(plan)
     # main()
-    train_dataloader, _, _ = build_dataloader()
-    tic = time.perf_counter()
-    train_dataloader.augment(method=cf.AUG_METHOD)
-    toc = time.perf_counter()
-    print(f'time cost: {(toc-tic)*1000:.3f} ms')
     
     
