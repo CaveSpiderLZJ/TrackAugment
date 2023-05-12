@@ -482,12 +482,19 @@ def classic_augment(data:np.ndarray, axis:int, strategies:dict=None) -> np.ndarr
     '''
     if strategies is None: return data
     for strategy, param_dict in strategies.items():
-        rand = np.random.rand()
-        if rand > param_dict['prob']: continue
+        if np.random.rand() > param_dict['prob']: continue
+        if strategy == 'scale':
+            data = scale(data, std=param_dict['std'])
+        elif strategy == 'zoom':
+            data = zoom(data, axis=axis, low=param_dict['low'])
+        elif strategy == 'time warp':
+            data = time_warp2(data, axis=axis, n_knots=param_dict['N'], std=param_dict['std'])
+        elif strategy == 'mag warp':
+            data = magnitude_warp(data, axis=axis, n_knots=param_dict['N'], std=param_dict['std'])
     return data
 
 
-def classic_augment_on_track(center_pos:np.ndarray, axes:np.ndarray) -> np.ndarray:
+def classic_augment_on_track(center_pos:np.ndarray, axes:np.ndarray, strategies:dict=None) -> np.ndarray:
     ''' Combine Zoom, Scale and Time Warping on track data and conter to imu data.
     '''
     
@@ -520,10 +527,35 @@ def classic_augment_on_track(center_pos:np.ndarray, axes:np.ndarray) -> np.ndarr
     gyro = track_to_gyro(axes, fs=cf.FS_PREPROCESS)
     return np.concatenate([acc, gyro], axis=1)
     '''
-    
-    params = zoom_params(low=0.7)
-    center_pos = zoom(center_pos, axis=0, params=params)
-    axes = zoom(axes, axis=1, params=params)
+    if strategies is None:
+        acc = track_to_acc(center_pos, axes, fs=cf.FS_PREPROCESS)
+        gyro = track_to_gyro(axes, fs=cf.FS_PREPROCESS)
+        return np.concatenate([acc, gyro], axis=1)
+    for strategy, param_dict in strategies.items():
+        if np.random.rand() > param_dict['prob']: continue
+        if strategy == 'scale':
+            params = scale_params(std=param_dict['std'])
+            center_pos = scale(center_pos, params=params)
+            q = axes.transpose(1, 2, 0)
+            delta_q = np.matmul(q[0,:,:].transpose()[None,:,:], q)    
+            scaled_rot_vec = scale(Rotation.from_matrix(delta_q).as_rotvec(), params=params)
+            axes = np.matmul(q[0:1,:,:], Rotation.from_rotvec(scaled_rot_vec).as_matrix()).transpose(2,0,1)
+        elif strategy == 'zoom':
+            params = zoom_params(low=param_dict['low'])
+            center_pos = zoom(center_pos, axis=0, params=params)
+            axes = zoom(axes, axis=1, params=params)
+        elif strategy == 'time warp':
+            params = time_warp_params2(n_knots=param_dict['N'], std=param_dict['std'])
+            center_pos = time_warp2(center_pos, axis=0, params=params)
+            axes = time_warp2(axes, axis=1, params=params)
+        elif strategy == 'mag warp':
+            params = magnitude_warp_params(n_knots=param_dict['N'], std=param_dict['std'])
+            center_pos = magnitude_warp(center_pos, axis=0, params=params)
+            q = axes.transpose(1, 2, 0)
+            delta_q = np.matmul(q[0,:,:].transpose()[None,:,:], q)
+            rotvec = Rotation.from_matrix(delta_q).as_rotvec()
+            rotvec = magnitude_warp(rotvec, axis=0, params=params)
+            axes = np.matmul(q[0:1,:,:], Rotation.from_rotvec(rotvec).as_matrix()).transpose(2,0,1)
         
     acc = track_to_acc(center_pos, axes, fs=cf.FS_PREPROCESS)
     gyro = track_to_gyro(axes, fs=cf.FS_PREPROCESS)
