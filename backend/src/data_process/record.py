@@ -203,8 +203,8 @@ class Record:
         n_sample = self.n_sample
         W = gyro.shape[0] // n_sample
         gyro_std = np.array([np.std(gyro[i*W:(i+1)*W,:]) for i in range(n_sample)])
-        # filter out gyro std < 0.23
-        self.clean_mask = (gyro_std >= 0.23)
+        # filter out gyro std < 0.1
+        self.clean_mask = (gyro_std >= 0.1)
         if self.track_path is not None:
             self.cutted_track_data = {
                 'center_pos': np.row_stack([track_data['center_pos'][None,l:r,:] for l, r in cut_ranges]),
