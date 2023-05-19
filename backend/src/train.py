@@ -137,18 +137,26 @@ def build_dataloader_study1(aug_method:str, strategies:dict) -> Tuple[DataLoader
     return train_dataloader, test_dataloader
 
 
-def build_dataloader(aug_method:str, strategies:dict) -> Tuple[DataLoader, DataLoader]:
+def build_dataloader(aug_method:str, strategies:dict, user_list:dict) -> Tuple[DataLoader, DataLoader]:
     ''' Build train and test dataloader in PilotRotate
     '''
-     # load task_list
+    
+    # load task_list
     task_list_id = 'TLm5wv3uex'
     task_list = fu.load_task_list_with_users(task_list_id)
     assert task_list is not None
     
     # build the dataset and dataloader
-    train_users = ['qp', 'fqj', 'zqy', 'lhs', 'hr', 'xq', 'lxt', 'gsq', 'lzj', 'wxy', 'lc', 'fhy', 'cr']
-    val_users = ['qwp', 'lst', 'lyf', 'mfj']
-    test_users = ['wxb', 'hz', 'hjp', 'cjy']
+    # train_users = ['qp', 'fqj', 'zqy', 'lhs', 'hr', 'xq', 'lxt', 'gsq', 'lzj', 'wxy', 'lc', 'fhy', 'cr']
+    # val_users = ['qwp', 'lst', 'lyf', 'mfj']
+    # test_users = ['wxb', 'hz', 'hjp', 'cjy']
+    # 7 users test
+    # train_users = ['gsq', 'wxy', 'lc', 'qp', 'hjp', 'qwp', 'cr']
+    # val_users = ['hz', 'fhy', 'cjy', 'hr', 'lxt', 'lst', 'lyf']
+    # test_users = ['zqy', 'wxb', 'lzj', 'fqj', 'mfj', 'lhs', 'xq']
+    train_users = user_list['train']
+    val_users = user_list['val']
+    test_users = user_list['test']
     train_days = [1, 2, 3]
     val_days = [4]
     test_days = [6]
@@ -237,7 +245,13 @@ def main(model_name:str, plan:dict):
     output_path = f'{cf.OUTPUT_ROOT}/{cf.PLAN_NAME}/{model_name}.txt'
     
     # build dataloaders
-    train_dataloader, val_dataloader, test_dataloader = build_dataloader(plan['method'], strategies=plan['strategies'])
+    user_list_id = 0
+    if 'user_list_id' in plan:
+        user_list_id = plan['user_list_id']
+    user_list_path = f'{cf.PLAN_ROOT}/study2_user_list.json'
+    user_list = json.load(open(user_list_path, 'r'))
+    train_dataloader, val_dataloader, test_dataloader = build_dataloader(
+        plan['method'], strategies=plan['strategies'], user_list=user_list[str(user_list_id)])
     
     # utils
     if os.path.exists(model_save_dir): shutil.rmtree(model_save_dir)
@@ -347,18 +361,18 @@ def main(model_name:str, plan:dict):
             print(f'| F1-score                : {f"{100*f1_score:.3f}".rjust(6)} %' + ' '*44 + '|')
             print(f'+{"-"*79}+')
             
-            if f1_score > max_f1_score:
-                max_f1_score = f1_score
-                best_model = copy.deepcopy(model)
-                torch.save(model.state_dict(), os.path.join(model_save_dir, 'best.model'))
-            if epoch > n_epochs / 2:    # only save last half models
+            if (epoch+1) > (n_epochs//2):
+                if f1_score > max_f1_score:
+                    max_f1_score = f1_score
+                    best_model = copy.deepcopy(model)
+                    torch.save(model.state_dict(), os.path.join(model_save_dir, 'best.model'))
                 torch.save(model.state_dict(), os.path.join(model_save_dir, f'{epoch}.model'))
                 
     fout = open(output_path, 'w')
          
     # output general validation metrics   
     toc = time.perf_counter()
-    general_matrix = np.mean(matrices[-4:], axis=0)
+    general_matrix = np.mean(matrices[-8:], axis=0)
     fout.write(f'### Validation performance:\n')
     fout.write(f'General matrix:\n')
     for i in range(n_classes):
