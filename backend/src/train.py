@@ -231,7 +231,7 @@ def build_dataloader(aug_method:str, strategies:dict, user_list:dict) -> Tuple[D
 
 def main(model_name:str, plan:dict):
     # config parameters
-    model = Model6()
+    model = Model5()
     n_classes = cf.N_CLASSES
     class_names = cf.CLASS_NAMES
     n_epochs = cf.N_EPOCHS
@@ -290,9 +290,7 @@ def main(model_name:str, plan:dict):
             if (i+1) % super_batch != 0 and (i+1) != len(train_dataloader):
                 continue
             # data = feature2(torch.concat(data,dim=0).transpose(1,2)).to(cf.DEVICE)
-            data = torch.concat(data,dim=0).transpose(1,2).to(cf.DEVICE)
-            data = torch.unsqueeze(data, dim=2)
-            data = data.to(torch.float32)
+            data = torch.concat(data,dim=0).transpose(1,2).to(torch.float32).to(cf.DEVICE)
             label = torch.concat(label, dim=0).to(cf.DEVICE)
             for j in range(int(np.ceil(data.shape[0]/batch_size))):
                 output: torch.Tensor = model(data[j*batch_size:(j+1)*batch_size,...])
@@ -326,9 +324,7 @@ def main(model_name:str, plan:dict):
                     if (i+1) % super_batch != 0 and (i+1) != len(val_dataloader):
                         continue
                     # data = feature2(torch.concat(data,dim=0).transpose(1,2)).to(cf.DEVICE)
-                    data = torch.concat(data,dim=0).transpose(1,2).to(cf.DEVICE)
-                    data = torch.unsqueeze(data, dim=2)
-                    data = data.to(torch.float32)
+                    data = torch.concat(data,dim=0).transpose(1,2).to(torch.float32).to(cf.DEVICE)
                     label = torch.concat(label, dim=0).to(cf.DEVICE)
                     for j in range(int(np.ceil(data.shape[0]/batch_size))):
                         output: torch.Tensor = model(data[j*batch_size:(j+1)*batch_size,...])
@@ -407,9 +403,7 @@ def main(model_name:str, plan:dict):
             if (i+1) % super_batch != 0 and (i+1) != len(test_dataloader):
                 continue
             # data = feature2(torch.concat(data,dim=0).transpose(1,2)).to(cf.DEVICE)
-            data = torch.concat(data,dim=0).transpose(1,2).to(cf.DEVICE)
-            data = torch.unsqueeze(data, dim=2)
-            data = data.to(torch.float32)
+            data = torch.concat(data,dim=0).transpose(1,2).to(torch.float32).to(cf.DEVICE)
             label = torch.concat(label, dim=0).to(cf.DEVICE)
             for j in range(int(np.ceil(data.shape[0]/batch_size))):
                 output: torch.Tensor = best_model(data[j*batch_size:(j+1)*batch_size,...])
