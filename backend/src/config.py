@@ -6,6 +6,7 @@ from typing import Dict
 WORKING_DIR = 'TrackAugment/backend/src'
 
 # data preprocessing
+GRAVITY = 9.94
 FS_PREPROCESS: int = 200        # the frequency after data resampling (unified for preprocessing)
 FS_TRACK: int = 200             # the frequency of the original track data
 FS_IMU: Dict[str, int] = {      # the frequencies of the original imu sensors

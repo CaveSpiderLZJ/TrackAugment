@@ -66,7 +66,7 @@ def track_to_acc(pos:np.ndarray, axes:np.ndarray, fs:float) -> np.ndarray:
     # acc = (fs/12) * (np.concatenate([acc[:1,:],acc[:1,:],acc[:-2,:]]) - 8*np.concatenate([acc[:1,:],acc[:-1,:]])
     #     + 8*np.concatenate([acc[1:,:],acc[-1:,:]]) - np.concatenate([acc[2:,:],acc[-1:,:],acc[-1:,:]]))
     acc = (fs*fs) * (np.concatenate([pos[1:,:],pos[-1:,:]]) - 2*pos + np.concatenate([pos[:1,:],pos[:-1,:]]))
-    gravity = np.array([0.0, 9.805, 0.0], dtype=np.float32)
+    gravity = np.array([0.0, cf.GRAVITY, 0.0], dtype=np.float32)
     acc = np.sum((acc[None,:,:] + gravity[None,None,:]) * axes, axis=2).T
     return butter_acc.filt(acc, axis=0)
 
@@ -117,9 +117,10 @@ def imu_to_track(acc:np.ndarray, gyro:np.ndarray, bound_pos:np.ndarray,
         rot1, rot2 = Rotation.from_rotvec(rot1), Rotation.from_rotvec(rot2)
         axes1[:,t+2,:] = np.matmul(rot1.as_matrix(), axes1[:,t,:].T).T
         axes2[:,N-3-t,:] = np.matmul(np.linalg.inv(rot2.as_matrix()), axes2[:,N-1-t,:].T).T
-    axes = axes1 * weight1[None,:,None] + axes2 * weight2[None,:,None]
+    # axes = axes1 * weight1[None,:,None] + axes2 * weight2[None,:,None]
+    axes = axes1
     # calculate global acc
-    gravity = np.array([0.0, 9.805, 0.0], dtype=np.float32)
+    gravity = np.array([0.0, cf.GRAVITY, 0.0], dtype=np.float32)
     a = np.sum(acc.T[:,:,None] * axes, axis=0) - gravity[None,:]
     # integrate to velocity
     v1, v2 = np.empty((N,3), dtype=np.float32), np.empty((N,3), dtype=np.float32)
@@ -134,7 +135,8 @@ def imu_to_track(acc:np.ndarray, gyro:np.ndarray, bound_pos:np.ndarray,
     p1[1:,:] = bound_pos[:1,:] + (1/(2*fs))*np.cumsum((v[:-1,:] + v[1:,:]), axis=0)
     p2[-1:,:] = bound_pos[-1:,:]
     p2[:-1,:] = bound_pos[-1:,:] - (1/(2*fs))*np.cumsum((v[-2::-1,:] + v[:0:-1,:]), axis=0)[::-1,:]
-    pos = p1 * weight1[:,None] + p2 * weight2[:,None]
+    # pos = p1 * weight1[:,None] + p2 * weight2[:,None]
+    pos = p1
     return pos, axes
 
 
@@ -208,6 +210,17 @@ def mse_error(data1:np.ndarray, data2:np.ndarray) -> float:
         float, the MSE error of the two arrays.
     '''
     return np.sum(np.square(data1-data2)) / np.prod(data1.shape)
+
+
+def rmse_error(data1:np.ndarray, data2:np.ndarray) -> float:
+    ''' Calculate the RMSE error of two arrays.
+    args:
+        data1: np.ndarray, with any shape and dtype.
+        data2: np.ndarray, with the same shape and dtype as data1.
+    return:
+        float, the RMSE error of the two arrays.
+    '''
+    return np.sqrt(np.sum(np.square(data1-data2)) / np.prod(data1.shape))
 
 
 def jitter(data:np.ndarray, std:float) -> np.ndarray:

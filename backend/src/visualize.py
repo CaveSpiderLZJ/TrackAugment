@@ -6,6 +6,7 @@ import json
 import pickle
 import numpy as np
 import pandas as pd
+from torch import nn
 from glob import glob
 from scipy import stats
 from scipy import interpolate as interp
@@ -26,6 +27,20 @@ from data_process.cutter import PeakCutter
 from data_process.filter import Butterworth
 from data_process.dataset import Dataset, DataLoader
 from data_process.dtw import dtw_match
+from train.model import *
+
+
+plt.rcParams["font.sans-serif"]=["Microsoft YaHei"]
+plt.rcParams["axes.unicode_minus"]=False
+
+
+COLORS = {
+    'r': "#F14D4D",
+    'g': '#46B454',
+    'b': '#56B7EC',
+    'o': '#EE8B29',
+    'p': '#8051C9',
+}
 
 
 def output_track_video(record:Record, save_path:str, start_frame:int, end_frame:int) -> None:
@@ -87,39 +102,351 @@ def output_track_video(record:Record, save_path:str, start_frame:int, end_frame:
 
 def visualize_track_to_imu(record:Record) -> None:
     idx = 10
+    start, end = 100, 500
     # prepare imu data
     imu_data = record.cutted_imu_data
-    acc = imu_data['acc'][idx,:,:]
-    gyro = imu_data['gyro'][idx,:,:]
+    acc = imu_data['acc'][idx,start:end,:]
+    gyro = imu_data['gyro'][idx,start:end,:]
     # prepare track data
     track_data = record.cutted_track_data
-    center_pos = track_data['center_pos'][idx,:,:]
-    marker_pos = track_data['marker_pos'][idx,:,:,:]
+    center_pos = track_data['center_pos'][idx,start:end,:]
+    marker_pos = track_data['marker_pos'][idx,:,start:end,:]
     axes = aug.calc_local_axes(marker_pos)
     track_acc = aug.track_to_acc(center_pos, axes, cf.FS_PREPROCESS)
     track_gyro = aug.track_to_gyro(axes, cf.FS_PREPROCESS)
     # plot acc data
+    colors = ('r', 'g', 'b')
+    t = np.linspace(0, 2, num=(end-start), endpoint=False)
+    plt.figure(figsize=(8,8))
     plt.subplot(2, 1, 1)
-    for i in range(3): plt.plot(acc[:,i])
-    for i in range(3): plt.plot(track_acc[:,i])
-    plt.ylabel('Accelerometer', fontsize=14)
+    for i in range(3):
+        plt.plot(t, acc[:,i], color=COLORS[colors[i]], linestyle='-.')
+    for i in range(3):
+        plt.plot(t, track_acc[:,i], color=COLORS[colors[i]])
+    plt.title('运动轨迹转化为 IMU 数据', fontsize=20)
+    plt.ylabel('加速度 (m/s^2)', fontsize=14)
+    plt.grid('both', linestyle='--')
     plt.legend(['X', 'Y', 'Z', 'X\'', 'Y\'', 'Z\''], loc='lower right')
     # plot gyro data
     plt.subplot(2, 1, 2)
-    for i in range(3): plt.plot(gyro[:,i])
-    for i in range(3): plt.plot(track_gyro[:,i])
-    plt.ylabel('Gyroscope', fontsize=14)
+    for i in range(3):
+        plt.plot(t, gyro[:,i], color=COLORS[colors[i]], linestyle='-.')
+    for i in range(3):
+        plt.plot(t, track_gyro[:,i], color=COLORS[colors[i]])
+    plt.xlabel('时间 (s)', fontsize=14)
+    plt.ylabel('角速度 (rad/s)', fontsize=14)
+    plt.grid('both', linestyle='--')
     plt.legend(['X', 'Y', 'Z', 'X\'', 'Y\'', 'Z\''], loc='lower right')
+    # plt.figure(figsize=(10,10))
     plt.show()
     return
+
+
+def visualize_imu_to_track(record:Record):
+    idx = 10
+    start, end = 100, 500
+    # prepare imu data
+    imu_data = record.cutted_imu_data
+    acc = imu_data['acc'][idx,start:end,:]
+    gyro = imu_data['gyro'][idx,start:end,:]
+    # prepare track data
+    track_data = record.cutted_track_data
+    center_pos = track_data['center_pos'][idx,start:end,:]
+    marker_pos = track_data['marker_pos'][idx,:,start:end,:]
+    # border condition    
+    axes = aug.calc_local_axes(marker_pos)
+    bound_pos = np.concatenate([center_pos[:1,:],center_pos[-1:,:]], axis=0)
+    bound_velocity = cf.FS_PREPROCESS * np.concatenate([center_pos[1:2,:]-center_pos[0:1,:],
+        center_pos[-1:,:]-center_pos[-2:-1,:]], axis=0)
+    bound_axes = np.concatenate([axes[:,:2,:],axes[:,-2:,:]], axis=1)
+    generated_pos, generated_axes = aug.imu_to_track(acc, gyro, bound_pos,
+        bound_velocity, bound_axes, cf.FS_PREPROCESS)
+    # rotate x, y, z, to -x, z, y
+    rot_matrix = np.array([[-1,0,0],[0,0,1],[0,1,0]], dtype=np.float32)
+    center_pos = np.matmul(rot_matrix, center_pos.T).T
+    generated_pos = np.matmul(rot_matrix, generated_pos.T).T
+    # plot 3d track
+    plt.figure(figsize=(8,8))
+    ax = plt.subplot(2, 1, 1, projection='3d')
+    ax.plot(center_pos[:,0], center_pos[:,1], center_pos[:,2], color=COLORS['o'])
+    ax.plot(generated_pos[:,0], generated_pos[:,1], generated_pos[:,2], color=COLORS['p'])
+    ax.xaxis.set_major_locator(MultipleLocator(0.05))
+    ax.yaxis.set_major_locator(MultipleLocator(0.05))
+    ax.zaxis.set_major_locator(MultipleLocator(0.05))
+    ax.set_box_aspect((3, 1, 1))
+    ax.set_xlim(-0.03, 0.27)
+    ax.set_ylim(0.075, 0.125)
+    ax.set_zlim(-0.025, 0.025)
+    ax.set_xlabel('X'); ax.set_ylabel('Y'); ax.set_zlabel('Z')
+    ax.legend(['原始运动轨迹', 'IMU 转化轨迹'], bbox_to_anchor=(1.55, 0.1))
+    plt.title(f'IMU 数据转化为运动轨迹', fontsize=20)
+    # plot signals
+    plt.subplot(2, 1, 2)
+    colors = ('r', 'g', 'b')
+    t = np.linspace(0, 2, num=(end-start), endpoint=False)
+    for i in range(3):
+        plt.plot(t, center_pos[:,i], color=COLORS[colors[i]], linestyle='-.')
+    for i in range(3):
+        plt.plot(t, generated_pos[:,i], color=COLORS[colors[i]])
+    plt.grid(axis='both', linestyle='--')
+    plt.legend(['X', 'Y', 'Z', 'X\'', 'Y\'', 'Z\''], loc='lower right')
+    plt.ylabel('空间位移 (m)', fontsize=14)
+    plt.xlabel('时间 (s)', fontsize=14)
+    plt.show()  
+    
+    
+def visualize_augmented_imu(record:Record):
+    idx = 10
+    start, end = 100, 500
+    # prepare imu data
+    imu_data = record.cutted_imu_data
+    acc = imu_data['acc'][idx,start:end,:]
+    gyro = imu_data['gyro'][idx,start:end,:]
+    params = 0.9
+    augmented_acc = aug.zoom(acc, axis=0, params=params)
+    augmented_gyro = aug.zoom(gyro, axis=0, params=params)
+    # params = 1.1
+    # augmented_acc = aug.scale(augmented_acc, params=params)
+    # augmented_gyro = aug.scale(augmented_gyro, params=params)
+    # prepare track data
+    track_data = record.cutted_track_data
+    center_pos = track_data['center_pos'][idx,start:end,:]
+    marker_pos = track_data['marker_pos'][idx,:,start:end,:]
+    axes = aug.calc_local_axes(marker_pos)
+    bound_pos = np.concatenate([center_pos[:1,:],center_pos[-1:,:]], axis=0)
+    bound_velocity = cf.FS_PREPROCESS * np.concatenate([center_pos[1:2,:]-center_pos[0:1,:],
+        center_pos[-1:,:]-center_pos[-2:-1,:]], axis=0)
+    bound_axes = np.concatenate([axes[:,:2,:],axes[:,-2:,:]], axis=1)
+    augmented_pos, _ = aug.imu_to_track(augmented_acc, augmented_gyro, bound_pos,
+        bound_velocity, bound_axes, cf.FS_PREPROCESS)
+    # rotate x, y, z, to -x, z, y
+    rot_matrix = np.array([[-1,0,0],[0,0,1],[0,1,0]], dtype=np.float32)
+    center_pos = np.matmul(rot_matrix, center_pos.T).T
+    augmented_pos = np.matmul(rot_matrix, augmented_pos.T).T
+    # plot
+    t = np.linspace(0, 2, num=(end-start), endpoint=False)
+    colors = ('r', 'g', 'b')
+    plt.figure(figsize=(16,8))
+    plt.subplot(2, 2, 1)
+    for i in range(3):
+        plt.plot(t, acc[:,i], color=COLORS[colors[i]], linestyle='-.')
+    for i in range(3):
+        plt.plot(t, augmented_acc[:,i], color=COLORS[colors[i]])
+    plt.ylabel('加速度 (m/s^2)', fontsize=14)
+    plt.legend(['X', 'Y', 'Z', 'X\'', 'Y\'', 'Z\''], loc='lower right')
+    plt.grid('both', linestyle='--')
+    plt.subplot(2, 2, 3)
+    for i in range(3):
+        plt.plot(t, gyro[:,i], color=COLORS[colors[i]], linestyle='-.')
+    for i in range(3):
+        plt.plot(t, augmented_gyro[:,i], color=COLORS[colors[i]])
+    plt.ylabel('角速度 (rad/s)', fontsize=14)
+    plt.xlabel('时间 (s)', fontsize=14)
+    plt.legend(['X', 'Y', 'Z', 'X\'', 'Y\'', 'Z\''], loc='lower right')
+    plt.grid('both', linestyle='--')
+    ax = plt.subplot(2, 2, 2, projection='3d')
+    ax.plot(center_pos[:,0], center_pos[:,1], center_pos[:,2], color=COLORS['o'])
+    ax.plot(augmented_pos[:,0], augmented_pos[:,1], augmented_pos[:,2], color=COLORS['p'])
+    ax.xaxis.set_major_locator(MultipleLocator(0.05))
+    ax.yaxis.set_major_locator(MultipleLocator(0.05))
+    ax.zaxis.set_major_locator(MultipleLocator(0.05))
+    ax.set_box_aspect((3.5, 1, 1))
+    ax.set_xlim(-0.03, 0.32)
+    ax.set_ylim(0.075, 0.125)
+    ax.set_zlim(-0.025, 0.025)
+    ax.legend(['原始运动轨迹', '增强后转化的轨迹'], bbox_to_anchor=(1.50, 0.1))     
+    plt.subplot(2, 2, 4)
+    for i in range(3):
+        plt.plot(t, center_pos[:,i], color=COLORS[colors[i]], linestyle='-.')
+    for i in range(3):
+        plt.plot(t, augmented_pos[:,i], color=COLORS[colors[i]])
+    plt.ylabel('空间位移 (m)', fontsize=14)
+    plt.xlabel('时间 (s)', fontsize=14)
+    plt.legend(['X', 'Y', 'Z', 'X\'', 'Y\'', 'Z\''], loc='lower right')
+    plt.grid('both', linestyle='--')
+    plt.show()
+    
+    
+def visualize_augmented_track(record:Record):
+    idx = 10
+    start, end = 100, 500
+    # prepare imu data
+    imu_data = record.cutted_imu_data
+    acc = imu_data['acc'][idx,start:end,:]
+    gyro = imu_data['gyro'][idx,start:end,:]
+    # prepare track data
+    track_data = record.cutted_track_data
+    center_pos = track_data['center_pos'][idx,start:end,:]
+    marker_pos = track_data['marker_pos'][idx,:,start:end,:]
+    axes = aug.calc_local_axes(marker_pos)
+    params = 0.9
+    augmented_pos = aug.zoom(center_pos, axis=0, params=params)
+    augmented_axes = aug.zoom(axes, axis=1, params=params)
+    augmented_acc = aug.track_to_acc(augmented_pos, augmented_axes, cf.FS_PREPROCESS)
+    augmented_gyro = aug.track_to_gyro(augmented_axes, cf.FS_PREPROCESS)
+    # rotate x, y, z, to -x, z, y
+    rot_matrix = np.array([[-1,0,0],[0,0,1],[0,1,0]], dtype=np.float32)
+    center_pos = np.matmul(rot_matrix, center_pos.T).T
+    augmented_pos = np.matmul(rot_matrix, augmented_pos.T).T
+    # plot
+    t = np.linspace(0, 2, num=(end-start), endpoint=False)
+    colors = ('r', 'g', 'b')
+    plt.figure(figsize=(16,8))
+    plt.subplot(2, 2, 1)
+    for i in range(3):
+        plt.plot(t, acc[:,i], color=COLORS[colors[i]], linestyle='-.')
+    for i in range(3):
+        plt.plot(t, augmented_acc[:,i], color=COLORS[colors[i]])
+    plt.ylabel('加速度 (m/s^2)', fontsize=14)
+    plt.legend(['X', 'Y', 'Z', 'X\'', 'Y\'', 'Z\''], loc='lower right')
+    plt.grid('both', linestyle='--')
+    plt.subplot(2, 2, 3)
+    for i in range(3):
+        plt.plot(t, gyro[:,i], color=COLORS[colors[i]], linestyle='-.')
+    for i in range(3):
+        plt.plot(t, augmented_gyro[:,i], color=COLORS[colors[i]])
+    plt.ylabel('角速度 (rad/s)', fontsize=14)
+    plt.xlabel('时间 (s)', fontsize=14)
+    plt.legend(['X', 'Y', 'Z', 'X\'', 'Y\'', 'Z\''], loc='lower right')
+    plt.grid('both', linestyle='--')
+    ax = plt.subplot(2, 2, 2, projection='3d')
+    ax.plot(center_pos[:,0], center_pos[:,1], center_pos[:,2], color=COLORS['o'])
+    ax.plot(augmented_pos[:,0], augmented_pos[:,1], augmented_pos[:,2], color=COLORS['p'])
+    ax.xaxis.set_major_locator(MultipleLocator(0.05))
+    ax.yaxis.set_major_locator(MultipleLocator(0.05))
+    ax.zaxis.set_major_locator(MultipleLocator(0.05))
+    ax.set_box_aspect((3, 1, 1))
+    ax.set_xlim(-0.03, 0.27)
+    ax.set_ylim(0.075, 0.125)
+    ax.set_zlim(-0.025, 0.025)
+    ax.legend(['原始运动轨迹', '增强后的运动轨迹'], bbox_to_anchor=(1.50, 0.1))     
+    plt.subplot(2, 2, 4)
+    for i in range(3):
+        plt.plot(t, center_pos[:,i], color=COLORS[colors[i]], linestyle='-.')
+    for i in range(3):
+        plt.plot(t, augmented_pos[:,i], color=COLORS[colors[i]])
+    plt.ylabel('空间位移 (m)', fontsize=14)
+    plt.xlabel('时间 (s)', fontsize=14)
+    plt.legend(['X', 'Y', 'Z', 'X\'', 'Y\'', 'Z\''], loc='lower right')
+    plt.grid('both', linestyle='--')
+    plt.show()
+
+
+def calc_rmse_error():
+    ''' Calculate the RMSE error of track2imu and imu2track on study-2 dataset.
+    '''
+    task_list_id = f'TLm5wv3uex'
+    record_paths = glob(f'../data/record/{task_list_id}/TK*/ST*/RD*')
+    acc_data, gyro_data = [], []
+    track_acc_data, track_gyro_data = [], []
+    center_pos_data = []
+    imu_center_pos_data = []
+    for record_path in tqdm.tqdm(record_paths):
+        record = Record(record_path, n_sample=20)
+        imu_data = record.cutted_imu_data
+        acc, gyro = imu_data['acc'][:,50:450,:], imu_data['gyro'][:,50:450,:]
+        acc_data.append(acc)
+        gyro_data.append(gyro)
+        track_data = record.cutted_track_data
+        center_pos = track_data['center_pos'][:,50:450,:]
+        marker_pos = track_data['marker_pos'][:,:,50:450,:]
+        center_pos_data.append(center_pos)
+        for i in range(center_pos.shape[0]):
+            # track to imu
+            axes = aug.calc_local_axes(marker_pos[i,:,:,:])
+            track_gyro_data.append(aug.track_to_gyro(axes, cf.FS_PREPROCESS)[None,:,:])
+            track_acc_data.append(aug.track_to_acc(center_pos[i,:,:], axes, cf.FS_PREPROCESS)[None,:,:])
+            # imu to track
+            bound_pos = np.concatenate([center_pos[i,:1,:],center_pos[i,-1:,:]], axis=0)
+            bound_velocity = cf.FS_PREPROCESS * np.concatenate([center_pos[i,1:2,:]-center_pos[i,0:1,:],
+                center_pos[i,-1:,:]-center_pos[i,-2:-1,:]], axis=0)
+            bound_axes = np.concatenate([axes[:,:2,:],axes[:,-2:,:]], axis=1)
+            imu_center_pos, _ = aug.imu_to_track(acc[i,:,:], gyro[i,:,:], bound_pos,
+            bound_velocity, bound_axes, cf.FS_PREPROCESS)
+            imu_center_pos_data.append(imu_center_pos[None,:,:])
+    acc_data = np.concatenate(acc_data, axis=0)
+    gyro_data = np.concatenate(gyro_data, axis=0)
+    track_acc_data = np.concatenate(track_acc_data, axis=0)
+    track_gyro_data = np.concatenate(track_gyro_data, axis=0)
+    print(f'track to acc error: {aug.rmse_error(acc_data, track_acc_data):.6f}')
+    print(f'track to gyro error: {aug.rmse_error(gyro_data, track_gyro_data):.6f}')
+    center_pos_data = np.concatenate(center_pos_data, axis=0)
+    imu_center_pos_data = np.concatenate(imu_center_pos_data, axis=0)
+    print(f'imu to track error: {aug.rmse_error(center_pos_data, imu_center_pos_data):.6f}')
+    
+    
+def visualize_move_and_rotate():
+    ''' Visualize imu signal of move 10-40, rotate 45-180, medium.
+    '''
+    task_list_id = 'TLm5wv3uex'
+    task_list = fu.load_task_list_with_users(task_list_id)
+    record_paths = []
+    task_names = ('Move10', 'Move20', 'Move30', 'Move40', 'Rotate45', 'Rotate90', 'Rotate135', 'Rotate180')
+    task_names_zh = ('移动 10 厘米', '移动 20 厘米', '移动 30 厘米', '移动 40 厘米', 
+        '旋转 45 度', '旋转 90 度', '旋转 135 度', '旋转 180 度')
+    subtask_name = 'Medium'
+    user_name = 'lzj'
+    for task_name in task_names:
+        for task in task_list['tasks']:
+            if task['name'] == task_name: break
+        assert task['name'] == task_name
+        for subtask in task['subtasks']:
+            if subtask['name'] == subtask_name: break
+        assert subtask['name'] == subtask_name
+        record_id = subtask['record_dict'][user_name]
+        record_path = fu.get_record_path(task_list_id, task['id'], subtask['id'], record_id)
+        record_paths.append(record_path)
+    # plot imu signals
+    idx = 10
+    start, end = 50, 450
+    t = np.linspace(0, 2, num=(end-start), endpoint=False)
+    plt.figure(figsize=(20,10))
+    for i, record_path in enumerate(record_paths):
+        record = Record(record_path, n_sample=20)
+        imu_data = record.cutted_imu_data
+        acc = imu_data['acc'][idx,start:end,:]
+        gyro = imu_data['gyro'][idx,start:end,:]
+        colors = ('r', 'g', 'b')
+        if i < 4: idx = i + 1
+        else: idx = i + 5
+        plt.subplot(4, 4, idx)
+        for j in range(3):
+            plt.plot(t, acc[:,j], color=COLORS[colors[j]])
+        if i < 4: plt.ylim(-13, 19)
+        else: plt.ylim(-16, 16)
+        plt.grid('both', linestyle='--')
+        plt.title(task_names_zh[i], fontsize=14)
+        plt.xticks(ticks=[0,0.5,1.0,1.5,2.0], labels=['']*5)
+        if i == 0 or i == 4:
+            plt.yticks(ticks=[-10,0,10])
+            plt.ylabel('加速度 (m/s^2)', fontsize=14)
+        else: plt.yticks(ticks=[-10,0,10], labels=['']*3)
+        plt.subplot(4, 4, idx+4)
+        for j in range(3):
+            plt.plot(t, gyro[:,j], color=COLORS[colors[j]])
+        plt.ylim(-16, 16)
+        plt.grid('both', linestyle='--')
+        if i < 4:
+            plt.xticks(ticks=[0,0.5,1.0,1.5,2.0], labels=['']*5)
+        else: plt.xticks(ticks=[0,0.5,1.0,1.5,2.0])
+        if i == 0 or i == 4:
+            plt.yticks(ticks=[-10,0,10])
+            plt.ylabel('角速度 (rad/s)', fontsize=14)
+        else: plt.yticks(ticks=[-10,0,10], labels=['']*3)
+        if i >= 4:
+            plt.xlabel('时间 (t)', fontsize=14)
+        if i == 7:
+            plt.legend(['X', 'Y', 'Z'], bbox_to_anchor=(1.28, 0.46))
+            
+    plt.show()
     
     
 def visualize_markers(record:Record) -> None:
     ''' Visualize the marker positions.
     '''
     track_data = record.track_data
-    center_pos = track_data['center_pos']
-    marker_pos = track_data['marker_pos']
+    center_pos = track_data['center_pos'] * 1e3
+    marker_pos = track_data['marker_pos'] * 1e3
     axes = aug.calc_local_axes(marker_pos)
     center_pos -= marker_pos[0,:,:]
     center_pos = np.sum(center_pos[None,:,:] * axes, axis=2).T
@@ -139,235 +466,6 @@ def visualize_markers(record:Record) -> None:
     plt.title(f'Marker Positions', fontsize=16)
     plt.xlabel(f'x (mm)', fontsize=14)
     plt.ylabel(f'y (mm)', fontsize=14)
-    plt.show()
-    
-
-def visualize_augmented_3d_track(record:Record) -> None:
-    # prepare imu data
-    imu_data = record.imu_data
-    start_imu, end_imu = 3000, 3500
-    acc = imu_data['acc'][start_imu:end_imu,:]
-    acc = aug.down_sample_by_step(acc, axis=0, step=5)
-    # augmented_acc = aug.jitter(acc, std=1)
-    # augmented_acc = aug.scale(acc, 0.05)
-    augmented_acc = aug.time_warp(acc, axis=0, n_knots=4, std=0.05)
-    # augmented_acc = aug.magnitude_warp(acc, axis=0, n_knots=4, std=0.1)
-    gyro = imu_data['gyro'][start_imu:end_imu,:]
-    gyro = aug.down_sample_by_step(gyro, axis=0, step=5)
-    # prepare track data
-    track_data = record.track_data
-    start_track, end_track = 3134, 3334
-    center_pos = track_data['center_pos'][start_track:end_track,:]
-    marker_pos = track_data['marker_pos'][:,start_track:end_track,:]
-    center_pos = aug.down_sample_by_step(center_pos, axis=0, step=2)
-    marker_pos = aug.down_sample_by_step(marker_pos, axis=1, step=2)
-    axes = aug.calc_local_axes(marker_pos)
-    # convert imu data to track data
-    bound_pos = np.row_stack([center_pos[0,:], center_pos[-1,:]])
-    bound_velocity = np.row_stack([center_pos[1,:]-center_pos[0,:],
-        center_pos[-1,:]-center_pos[-2,:]])
-    bound_axes = np.concatenate([axes[:,0:2,:], axes[:,-2:,:]], axis=1)
-    converted_pos, converted_axes = aug.imu_to_track(augmented_acc, gyro,
-        bound_pos, bound_velocity, bound_axes, 100.0)
-    # rotate x, y, z to -x, z, y
-    rot_matrix = np.array([[-1,0,0],[0,0,1],[0,1,0]], dtype=np.float32)
-    center_pos = np.matmul(rot_matrix, center_pos.T).T
-    converted_pos = np.matmul(rot_matrix, converted_pos.T).T
-    # plot track
-    ax = plt.axes(projection='3d')
-    ax.plot(center_pos[:,0], center_pos[:,1], center_pos[:,2], color='blue')
-    ax.plot(converted_pos[:,0], converted_pos[:,1], converted_pos[:,2], color='orange')
-    # set equal box aspect
-    x_scale = np.abs(np.diff(ax.get_xlim()))[0]
-    y_scale = np.abs(np.diff(ax.get_ylim()))[0]
-    z_scale = np.abs(np.diff(ax.get_zlim()))[0]
-    ax.xaxis.set_major_locator(MultipleLocator(0.05))
-    ax.yaxis.set_major_locator(MultipleLocator(0.05))
-    ax.zaxis.set_major_locator(MultipleLocator(0.05))
-    ax.set_box_aspect((x_scale,y_scale,z_scale))
-    ax.set_xlabel('X'); ax.set_ylabel('Y'); ax.set_zlabel('Z')
-    ax.set_title('Smartphone Track Visualization', fontsize=16)
-    plt.show()
-    
-    
-def visualize_imu_to_track(record:Record):
-    imu_data = record.imu_data
-    track_data = record.track_data
-    start_imu, end_imu = 3000, 3500
-    start_track, end_track = 3134, 3334
-    acc, gyro = imu_data['acc'][start_imu:end_imu,:], imu_data['gyro'][start_imu:end_imu,:]
-    center_pos = track_data['center_pos'][start_track:end_track,:]
-    marker_pos = track_data['marker_pos'][:,start_track:end_track,:]
-    axes = aug.calc_local_axes(marker_pos)
-    # down_sample
-    acc = aug.down_sample_by_step(acc, axis=0, step=5)
-    gyro = aug.down_sample_by_step(gyro, axis=0, step=5)
-    center_pos = aug.down_sample_by_step(center_pos, axis=0, step=2)
-    axes = aug.down_sample_by_step(axes, axis=1, step=2)
-    bound_pos = np.concatenate([center_pos[:1,:],center_pos[-1:,:]], axis=0)
-    bound_velocity = 100*np.concatenate([center_pos[1:2,:]-center_pos[0:1,:],
-        center_pos[-1:,:]-center_pos[-2:-1,:]], axis=0)
-    bound_axes = np.concatenate([axes[:,:2,:],axes[:,-2:,:]], axis=1)
-    generated_pos, generated_axes = aug.imu_to_track(acc, gyro, bound_pos,
-        bound_velocity, bound_axes, 100.0)
-    mse = aug.mse_error(center_pos, generated_pos)
-    print(f'MSE Error: {mse:.6f}.')
-    # rotate x, y, z, to -x, z, y
-    rot_matrix = np.array([[-1,0,0],[0,0,1],[0,1,0]], dtype=np.float32)
-    center_pos = np.matmul(rot_matrix, center_pos.T).T
-    generated_pos = np.matmul(rot_matrix, generated_pos.T).T
-    # plot 3d track
-    ax = plt.subplot(1, 2, 1, projection='3d')
-    ax.plot(center_pos[:,0], center_pos[:,1], center_pos[:,2], color='blue')
-    ax.plot(generated_pos[:,0], generated_pos[:,1], generated_pos[:,2], color='orange')
-    x_scale = np.abs(np.diff(ax.get_xlim()))[0]
-    y_scale = np.abs(np.diff(ax.get_ylim()))[0]
-    z_scale = np.abs(np.diff(ax.get_zlim()))[0]
-    ax.xaxis.set_major_locator(MultipleLocator(0.05))
-    ax.yaxis.set_major_locator(MultipleLocator(0.05))
-    ax.zaxis.set_major_locator(MultipleLocator(0.05))
-    ax.set_box_aspect((x_scale,y_scale,z_scale))
-    ax.set_xlabel('X'); ax.set_ylabel('Y'); ax.set_zlabel('Z')
-    ax.legend(['Original', 'Generated'], loc='lower right')
-    plt.title(f'Position Track (m)', fontsize=16)
-    # plot signals
-    plt.subplot(1, 2, 2)
-    for i in range(3):
-        plt.plot(center_pos[:,i])
-    for i in range(3):
-        plt.plot(generated_pos[:,i])
-    plt.grid(axis='both', linestyle='--')
-    plt.legend(['X', 'Y', 'Z', 'X\'', 'Y\'', 'Z\''], loc='lower right')
-    plt.title(f'Position Signals (m)', fontsize=16)
-    plt.show()
-    
-
-def augment_track(record:Record):
-    # prepare imu data
-    imu_data = record.imu_data
-    start_imu, end_imu = 2500, 5000
-    acc = imu_data['acc'][start_imu:end_imu,:]
-    gyro = imu_data['gyro'][start_imu:end_imu,:]
-    # prepare track data
-    track_data = record.track_data
-    start_track, end_track = 2934, 3934
-    center_pos = track_data['center_pos'][start_track:end_track,:]
-    marker_pos = track_data['marker_pos'][:,start_track:end_track,:]
-    axes = aug.calc_local_axes(marker_pos)
-    # augment data
-    # augmented_pos = aug.jitter(center_pos, std=1e-3)
-    # augmented_pos = aug.scale(center_pos, std=0.05)
-    augmented_pos = aug.magnitude_warp(center_pos, axis=0, n_knots=8, std=0.1)
-    # augmented_pos = aug.time_warp(center_pos, axis=0, n_knots=4, std=0.1)
-    augmented_acc = aug.track_to_acc(augmented_pos, axes, 200.0)
-    augmented_gyro = aug.track_to_gyro(axes, 200.0)
-    # downsample data
-    center_pos = aug.down_sample_by_step(center_pos, axis=0, step=2)
-    augmented_pos = aug.down_sample_by_step(augmented_pos, axis=0, step=2)
-    acc = aug.down_sample_by_step(acc, axis=0, step=5)
-    augmented_acc = aug.down_sample_by_step(augmented_acc, axis=0, step=2)
-    gyro = aug.down_sample_by_step(gyro, axis=0, step=5)
-    augmented_gyro = aug.down_sample_by_step(augmented_gyro, axis=0, step=2)
-    # rotate x, y, z, to -x, z, y
-    rot_matrix = np.array([[-1,0,0],[0,0,1],[0,1,0]], dtype=np.float32)
-    center_pos = np.matmul(rot_matrix, center_pos.T).T
-    augmented_pos = np.matmul(rot_matrix, augmented_pos.T).T
-    # plot 3d track
-    grids = gs.GridSpec(2, 3)
-    ax = plt.subplot(grids[:,0], projection='3d')
-    ax.plot(center_pos[:,0], center_pos[:,1], center_pos[:,2], color='blue')
-    ax.plot(augmented_pos[:,0], augmented_pos[:,1], augmented_pos[:,2], color='orange')
-    x_scale = np.abs(np.diff(ax.get_xlim()))[0]
-    y_scale = np.abs(np.diff(ax.get_ylim()))[0]
-    z_scale = np.abs(np.diff(ax.get_zlim()))[0]
-    ax.xaxis.set_major_locator(MultipleLocator(0.05))
-    ax.yaxis.set_major_locator(MultipleLocator(0.05))
-    ax.zaxis.set_major_locator(MultipleLocator(0.05))
-    ax.set_box_aspect((x_scale,y_scale,z_scale))
-    ax.set_xlabel('X'); ax.set_ylabel('Y'); ax.set_zlabel('Z')
-    ax.legend(['Original', 'Generated'], loc='lower right')
-    ax.set_title(f'3D Track', fontsize=14)
-    # plot track data
-    ax = plt.subplot(grids[:,1])
-    for i in range(3): ax.plot(center_pos[:,i])
-    for i in range(3): ax.plot(augmented_pos[:,i])
-    ax.legend(['X','Y','Z','X\'','Y\'','Z\''], loc='lower right')
-    ax.set_title(f'Global Position', fontsize=14)
-    # plot acc and gyro data
-    ax = plt.subplot(grids[0,2])
-    for i in range(3): ax.plot(acc[:,i])
-    for i in range(3): ax.plot(augmented_acc[:,i])
-    ax.set_title(f'Acc and Gyro', fontsize=14)
-    ax = plt.subplot(grids[1,2])
-    for i in range(3): ax.plot(gyro[:,i])
-    for i in range(3): ax.plot(augmented_gyro[:,i])
-    plt.show()
-    
-    
-def augment_imu(record:Record):
-    # prepare imu data
-    imu_data = record.imu_data
-    start_imu, end_imu = 3000, 3500
-    acc = imu_data['acc'][start_imu:end_imu,:]
-    gyro = imu_data['gyro'][start_imu:end_imu,:]
-    # prepare track data
-    track_data = record.track_data
-    start_track, end_track = 3134, 3334
-    center_pos = track_data['center_pos'][start_track:end_track,:]
-    marker_pos = track_data['marker_pos'][:,start_track:end_track,:]
-    center_pos = aug.resample(center_pos, axis=0, ratio=2.5)
-    marker_pos = aug.resample(marker_pos, axis=1, ratio=2.5)
-    axes = aug.calc_local_axes(marker_pos)
-    # augment data
-    # augmented_acc = aug.jitter(acc, std=1.0)
-    # augmented_acc = aug.scale(acc, std=0.1)
-    # augmented_acc = aug.magnitude_warp(acc, axis=0, n_knots=8, std=0.1)
-    augmented_acc = aug.time_warp(acc, axis=0, n_knots=4, std=0.1)
-    # augmented_gyro = gyro.copy()
-    augmented_gyro = aug.time_warp(gyro, axis=0, n_knots=4, std=0.1)
-    bound_pos = np.concatenate([center_pos[:1,:],center_pos[-1:,:]], axis=0)
-    bound_velocity = 500 * np.concatenate([center_pos[1:2,:]-center_pos[0:1,:],
-        center_pos[-1:,:]-center_pos[-2:-1,:]], axis=0)
-    bound_axes = np.concatenate([axes[:,:2,:],axes[:,-2:,:]], axis=1)
-    generated_pos, generated_axes = aug.imu_to_track(acc, gyro,
-        bound_pos, bound_velocity, bound_axes, 500.0)
-    augmented_pos, augmented_axes = aug.imu_to_track(augmented_acc, augmented_gyro,
-        bound_pos, bound_velocity, bound_axes, 500.0)
-    # rotate x, y, z, to -x, z, y
-    rot_matrix = np.array([[-1,0,0],[0,0,1],[0,1,0]], dtype=np.float32)
-    center_pos = np.matmul(rot_matrix, center_pos.T).T
-    generated_pos = np.matmul(rot_matrix, generated_pos.T).T
-    augmented_pos = np.matmul(rot_matrix, augmented_pos.T).T
-    # plot 3d track
-    grids = gs.GridSpec(2, 3)
-    ax = plt.subplot(grids[:,0], projection='3d')
-    ax.plot(center_pos[:,0], center_pos[:,1], center_pos[:,2], color='blue')
-    ax.plot(generated_pos[:,0], generated_pos[:,1], generated_pos[:,2], color='green')
-    ax.plot(augmented_pos[:,0], augmented_pos[:,1], augmented_pos[:,2], color='orange')
-    x_scale = np.abs(np.diff(ax.get_xlim()))[0]
-    y_scale = np.abs(np.diff(ax.get_ylim()))[0]
-    z_scale = np.abs(np.diff(ax.get_zlim()))[0]
-    ax.xaxis.set_major_locator(MultipleLocator(0.05))
-    ax.yaxis.set_major_locator(MultipleLocator(0.05))
-    ax.zaxis.set_major_locator(MultipleLocator(0.05))
-    ax.set_box_aspect((x_scale,y_scale,z_scale))
-    ax.set_xlabel('X'); ax.set_ylabel('Y'); ax.set_zlabel('Z')
-    ax.legend(['Original', 'Generated', 'Augmented'], loc='lower right')
-    ax.set_title(f'3D Track', fontsize=14)
-    # plot track data
-    ax = plt.subplot(grids[:,1])
-    for i in range(3): ax.plot(center_pos[:,i])
-    for i in range(3): ax.plot(augmented_pos[:,i])
-    ax.legend(['X','Y','Z','X\'','Y\'','Z\''], loc='lower right')
-    ax.set_title(f'Global Position', fontsize=14)
-    # plot acc and gyro data
-    ax = plt.subplot(grids[0,2])
-    for i in range(3): ax.plot(acc[:,i])
-    for i in range(3): ax.plot(augmented_acc[:,i])
-    ax.set_title(f'Acc and Gyro', fontsize=14)
-    ax = plt.subplot(grids[1,2])
-    for i in range(3): ax.plot(gyro[:,i])
-    for i in range(3): ax.plot(augmented_gyro[:,i])
     plt.show()
     
 
@@ -861,21 +959,29 @@ def visualize_move_distance():
     plt.ylabel('Distance (m)', fontsize=14)
     plt.title('Moving distance distributions', fontsize=16)
     plt.show()
-    
+   
+   
+def model_structure():
+    model = Model4()
+    params = model.parameters()
+    total = 0
+    for item in params:
+        print(item.shape, np.prod(item.shape))
+        total += np.prod(item.shape)
+    print(f'### total: {total / 1000} k')
+ 
         
 if __name__ == '__main__':
     np.random.seed(0)
     fu.check_cwd()
-    task_list_id = 'TLm5wv3uex'
-    task_id = 'TK7mek47cs'
-    subtask_id = 'STu1wy07jb'
-    record_id = 'RDpcwcz2lh'
-    record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
-    tic = time.perf_counter()
-    record = Record(record_path, n_sample=20)
-    toc = time.perf_counter()
-    print(f'time: {(toc-tic)*1000:.3f} ms')
+    # task_list_id = 'TLm5wv3uex'
+    # task_id = 'TK7mek47cs'
+    # subtask_id = 'STu1wy07jb'
+    # record_id = 'RDn4jpscoo'
+    # record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
+    # tic = time.perf_counter()
+    # record = Record(record_path, n_sample=20)
+    # toc = time.perf_counter()
+    # print(f'time: {(toc-tic)*1000:.3f} ms')
     
-    visualize_track_to_imu(record)
-    
-        
+    model_structure()
