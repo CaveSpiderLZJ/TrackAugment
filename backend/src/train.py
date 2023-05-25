@@ -138,7 +138,7 @@ def build_dataloader_study1(aug_method:str, strategies:dict) -> Tuple[DataLoader
     return train_dataloader, test_dataloader
 
 
-def build_dataloader(aug_method:str, strategies:dict, user_list:dict) -> Tuple[DataLoader, DataLoader]:
+def build_dataloader(aug_method:str, class_names:tuple, strategies:dict, user_list:dict) -> Tuple[DataLoader, DataLoader]:
     ''' Build train and test dataloader in PilotRotate
     '''
     
@@ -173,7 +173,7 @@ def build_dataloader(aug_method:str, strategies:dict, user_list:dict) -> Tuple[D
     # insert positive data
     print(f'### Insert positive data.')
     record_info = []
-    for task_name, label in zip(cf.CLASS_NAMES[1:], (1, 2, 3, 4)):
+    for task_name, label in zip(class_names[1:], (1, 2, 3, 4)):
         for task in task_list['tasks']:
             if task['name'] == task_name: break
         assert task['name'] == task_name
@@ -233,7 +233,6 @@ def main(model_name:str, plan:dict):
     # config parameters
     model = Model5()
     n_classes = cf.N_CLASSES
-    class_names = cf.CLASS_NAMES
     n_epochs = cf.N_EPOCHS
     learning_rate = cf.LEARNING_RATE
     super_batch = cf.SUPER_BATCH
@@ -244,6 +243,10 @@ def main(model_name:str, plan:dict):
     model_save_dir = f'{cf.MODEL_ROOT}/{model_name}'
     log_save_dir = f'{cf.LOG_ROOT}/{model_name}'
     output_path = f'{cf.OUTPUT_ROOT}/{cf.PLAN_NAME}/{model_name}.txt'
+    if plan['class_name'] == 'move':
+        class_names = ('Negative', 'Move10', 'Move20', 'Move30', 'Move40')
+    elif plan['class_name'] == 'rotate':
+        class_names = ('Negative', 'Rotate45', 'Rotate90', 'Rotate135', 'Rotate180')
     
     # build dataloaders
     user_list_id = 0
@@ -251,8 +254,8 @@ def main(model_name:str, plan:dict):
         user_list_id = plan['user_list_id']
     user_list_path = f'{cf.PLAN_ROOT}/study2_user_list.json'
     user_list = json.load(open(user_list_path, 'r'))
-    train_dataloader, val_dataloader, test_dataloader = build_dataloader(
-        plan['method'], strategies=plan['strategies'], user_list=user_list[str(user_list_id)])
+    train_dataloader, val_dataloader, test_dataloader = build_dataloader(plan['method'],
+        class_names, strategies=plan['strategies'], user_list=user_list[str(user_list_id)])
     
     # utils
     if os.path.exists(model_save_dir): shutil.rmtree(model_save_dir)

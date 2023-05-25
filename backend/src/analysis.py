@@ -8,24 +8,27 @@ from matplotlib import pyplot as plt
 import file_utils as fu
 
 
-def parse_output_file(file_path:str):
+def parse_output_file(file_path:str) -> dict:
+    file_name = file_path.split('/')[-1][:-4]
     f = open(file_path, 'r')
     pattern = r'F1-score = (\d+\.\d+)%'
     for _ in range(8): f.readline()
     val_score = float(re.search(pattern,f.readline()).group(1))
     for _ in range(10): f.readline()
     test_score = float(re.search(pattern,f.readline()).group(1))
-    return val_score, test_score
+    return {'file_name': file_name, 'val_score': val_score,
+        'test_score': test_score}
 
 
 def analyze_test_f1_score():
     tasks, data_types, val_scores, test_scores, user_list_ids \
         = [], [], [], [], []
     for task in ('Move', 'Rotate'):
-        for user_list_id in range(7):    
+        for user_list_id in range(10):    
             # base
             file_path = glob(f'../data/output/*/*{task}IMU_userlist{user_list_id}_N*.txt')[0]
-            val_score, test_score = parse_output_file(file_path)
+            info = parse_output_file(file_path)
+            val_score, test_score = info['val_score'], info['test_score']
             tasks.append(task); data_types.append('base'); user_list_ids.append(user_list_id)
             val_scores.append(val_score); test_scores.append(test_score)
             # imu
@@ -33,7 +36,8 @@ def analyze_test_f1_score():
             best_val, best_test = 0, 0
             for file_path in file_paths:
                 if '_N_' in file_path: continue
-                val_score, test_score = parse_output_file(file_path)
+                info = parse_output_file(file_path)
+                val_score, test_score = info['val_score'], info['test_score']
                 if val_score > best_val:
                     best_val, best_test = val_score, test_score
             tasks.append(task); data_types.append('imu'); user_list_ids.append(user_list_id)
@@ -43,7 +47,8 @@ def analyze_test_f1_score():
             best_val, best_test = 0, 0
             for file_path in file_paths:
                 if '_N_' in file_path: continue
-                val_score, test_score = parse_output_file(file_path)
+                info = parse_output_file(file_path)
+                val_score, test_score = info['val_score'], info['test_score']
                 if val_score > best_val:
                     best_val, best_test = val_score, test_score
             tasks.append(task); data_types.append('track'); user_list_ids.append(user_list_id)
@@ -69,9 +74,20 @@ def analyze_test_f1_score():
     print(f'RotateIMU vs RotateTrack:')
     print(stats.ttest_rel(rotate_imu, rotate_track))   
     
+    
+def analyze_aug_parameters():
+    file_paths = glob(f'../data/output/*/*RotateTrackComb_model5*.txt')
+    items = []
+    for file_path in file_paths:
+        info = parse_output_file(file_path)
+        items.append((info['file_name'], info['val_score']))
+    items = sorted(items, key=lambda item:item[1], reverse=True)
+    for item in items:
+        print(f'{item[0]}: {item[1]}')
 
 
 if __name__ == '__main__':
     fu.check_cwd()
     analyze_test_f1_score()
+    
     
