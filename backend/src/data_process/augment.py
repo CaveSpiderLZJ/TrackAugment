@@ -16,6 +16,18 @@ butter_acc = Butterworth(fs=cf.FS_PREPROCESS, cut=0.1*cf.FS_PREPROCESS, mode='lo
 butter_gyro = Butterworth(fs=cf.FS_PREPROCESS, cut=0.2*cf.FS_PREPROCESS, mode='lowpass', order=1)
 
 
+def matrix_to_rotvec(matrix:np.ndarray) -> np.ndarray:
+    ''' Convert a series of rotation matrix to rotation vectors.
+    args:
+        matrix: np.ndarray[(N,3,3)], the rotation matrices.
+    returns:
+        np.ndarray[(N,3)], the rotation vectors.
+    '''
+    theta = np.arccos(0.5 * (np.trace(matrix, axis1=1, axis2=2)-1))
+    r = 0.5 * (matrix - matrix.transpose(0,2,1)) / (np.sin(theta)[:,None,None] + 1e-8)
+    return np.column_stack([r[:,2,1], r[:,0,2], r[:,1,0]]) * theta[:,None]
+
+
 def calc_local_axes(marker_pos:np.ndarray) -> np.ndarray:
     ''' Calculate local axes from marker position tracking data.
     args;
@@ -49,14 +61,14 @@ def track_to_acc(pos:np.ndarray, axes:np.ndarray, fs:float) -> np.ndarray:
     returns:
         np.ndarray[(N,3), np.float32], the accelerometer data in the local frame.
     '''
-    acc = (fs/12) * (np.concatenate([pos[:1,:],pos[:1,:],pos[:-2,:]]) - 8*np.concatenate([pos[:1,:],pos[:-1,:]])
-        + 8*np.concatenate([pos[1:,:],pos[-1:,:]]) - np.concatenate([pos[2:,:],pos[-1:,:],pos[-1:,:]]))
-    acc = (fs/12) * (np.concatenate([acc[:1,:],acc[:1,:],acc[:-2,:]]) - 8*np.concatenate([acc[:1,:],acc[:-1,:]])
-        + 8*np.concatenate([acc[1:,:],acc[-1:,:]]) - np.concatenate([acc[2:,:],acc[-1:,:],acc[-1:,:]]))
-    acc = np.sum(acc[None,:,:] * axes, axis=2).T
-    gravity = np.array([0.0, 9.805, 0.0], dtype=np.float32)
-    gravity = np.sum(gravity[None,None,:] * axes, axis=2).T
-    return butter_acc.filt(acc + gravity, axis=0)
+    # acc = (fs/12) * (np.concatenate([pos[:1,:],pos[:1,:],pos[:-2,:]]) - 8*np.concatenate([pos[:1,:],pos[:-1,:]])
+    #     + 8*np.concatenate([pos[1:,:],pos[-1:,:]]) - np.concatenate([pos[2:,:],pos[-1:,:],pos[-1:,:]]))
+    # acc = (fs/12) * (np.concatenate([acc[:1,:],acc[:1,:],acc[:-2,:]]) - 8*np.concatenate([acc[:1,:],acc[:-1,:]])
+    #     + 8*np.concatenate([acc[1:,:],acc[-1:,:]]) - np.concatenate([acc[2:,:],acc[-1:,:],acc[-1:,:]]))
+    acc = (fs*fs) * (np.concatenate([pos[1:,:],pos[-1:,:]]) - 2*pos + np.concatenate([pos[:1,:],pos[:-1,:]]))
+    gravity = np.array([0.0, cf.GRAVITY, 0.0], dtype=np.float32)
+    acc = np.sum((acc[None,:,:] + gravity[None,None,:]) * axes, axis=2).T
+    return butter_acc.filt(acc, axis=0)
 
 
 def track_to_gyro(axes:np.ndarray, fs:float) -> np.ndarray:
@@ -66,10 +78,10 @@ def track_to_gyro(axes:np.ndarray, fs:float) -> np.ndarray:
         fs: float, the sampling freqency, unit = (1 / s).
     returns:
         np.ndarray[(N,3), np.float32], the gyroscope data in the local frame.
-    '''
+    ''' 
     q = axes.transpose(1,2,0)
-    q_inv = np.linalg.inv(q)
-    r = np.matmul(np.concatenate([q[1:,:,:], q[-1:,:,:]]),
+    q_inv = q.transpose(0,2,1)
+    r: np.ndarray = np.matmul(np.concatenate([q[1:,:,:], q[-1:,:,:]]),
         np.concatenate([q_inv[:1,:,:], q_inv[:-1,:,:]]))
     gyro = (0.5*fs) * Rotation.from_matrix(r).as_rotvec()
     gyro = np.sum(gyro[None,:,:] * axes, axis=2).T
@@ -105,9 +117,10 @@ def imu_to_track(acc:np.ndarray, gyro:np.ndarray, bound_pos:np.ndarray,
         rot1, rot2 = Rotation.from_rotvec(rot1), Rotation.from_rotvec(rot2)
         axes1[:,t+2,:] = np.matmul(rot1.as_matrix(), axes1[:,t,:].T).T
         axes2[:,N-3-t,:] = np.matmul(np.linalg.inv(rot2.as_matrix()), axes2[:,N-1-t,:].T).T
-    axes = axes1 * weight1[None,:,None] + axes2 * weight2[None,:,None]
+    # axes = axes1 * weight1[None,:,None] + axes2 * weight2[None,:,None]
+    axes = axes1
     # calculate global acc
-    gravity = np.array([0.0, 9.805, 0.0], dtype=np.float32)
+    gravity = np.array([0.0, cf.GRAVITY, 0.0], dtype=np.float32)
     a = np.sum(acc.T[:,:,None] * axes, axis=0) - gravity[None,:]
     # integrate to velocity
     v1, v2 = np.empty((N,3), dtype=np.float32), np.empty((N,3), dtype=np.float32)
@@ -122,7 +135,8 @@ def imu_to_track(acc:np.ndarray, gyro:np.ndarray, bound_pos:np.ndarray,
     p1[1:,:] = bound_pos[:1,:] + (1/(2*fs))*np.cumsum((v[:-1,:] + v[1:,:]), axis=0)
     p2[-1:,:] = bound_pos[-1:,:]
     p2[:-1,:] = bound_pos[-1:,:] - (1/(2*fs))*np.cumsum((v[-2::-1,:] + v[:0:-1,:]), axis=0)[::-1,:]
-    pos = p1 * weight1[:,None] + p2 * weight2[:,None]
+    # pos = p1 * weight1[:,None] + p2 * weight2[:,None]
+    pos = p1
     return pos, axes
 
 
@@ -196,6 +210,17 @@ def mse_error(data1:np.ndarray, data2:np.ndarray) -> float:
         float, the MSE error of the two arrays.
     '''
     return np.sum(np.square(data1-data2)) / np.prod(data1.shape)
+
+
+def rmse_error(data1:np.ndarray, data2:np.ndarray) -> float:
+    ''' Calculate the RMSE error of two arrays.
+    args:
+        data1: np.ndarray, with any shape and dtype.
+        data2: np.ndarray, with the same shape and dtype as data1.
+    return:
+        float, the RMSE error of the two arrays.
+    '''
+    return np.sqrt(np.sum(np.square(data1-data2)) / np.prod(data1.shape))
 
 
 def jitter(data:np.ndarray, std:float) -> np.ndarray:
@@ -448,11 +473,12 @@ def dtw_augment(data1:np.ndarray, data2:np.ndarray,
     return x * weight + y * (1-weight)
 
 
-def classic_augment(data:np.ndarray, axis:int) -> np.ndarray:
+def classic_augment(data:np.ndarray, axis:int, strategies:dict=None) -> np.ndarray:
     ''' Combine Zoom, Scale and Time Warp.
     args:  
         data: np.ndarray, of any shape, data to be augmented.
         axis: int, the time series axis.
+        strategies: dict, the augment strategy config.
     '''
     
     ''' compelete algorithm
@@ -467,30 +493,31 @@ def classic_augment(data:np.ndarray, axis:int) -> np.ndarray:
         data = magnitude_warp(data, axis=axis, n_knots=6, std=0.008)
     return data
     '''
-    strategies = np.random.randint(0,16)
-    if strategies in (1,3,5,7,9,11,13,15):
-        data = scale(data, std=0.05)
-    if strategies in (2,3,6,7,10,11,14,15):
-        data = zoom(data, axis=axis, low=0.999)
-    if strategies in (4,5,6,7,12,13,14,15):
-        data = time_warp2(data, axis=axis, n_knots=4, std=0.08)
-    if strategies in (8,9,10,11,12,13,14,15):
-        data = magnitude_warp(data, axis=axis, n_knots=6, std=0.008)
+    if strategies is None: return data
+    for strategy, param_dict in strategies.items():
+        if np.random.rand() > param_dict['prob']: continue
+        if strategy == 'scale':
+            data = scale(data, std=param_dict['std'])
+        elif strategy == 'zoom':
+            data = zoom(data, axis=axis, low=param_dict['low'])
+        elif strategy == 'time warp':
+            data = time_warp2(data, axis=axis, n_knots=param_dict['N'], std=param_dict['std'])
+        elif strategy == 'mag warp':
+            data = magnitude_warp(data, axis=axis, n_knots=param_dict['N'], std=param_dict['std'])
     return data
 
 
-def classic_augment_on_track(center_pos:np.ndarray, marker_pos:np.ndarray) -> np.ndarray:
+def classic_augment_on_track(center_pos:np.ndarray, axes:np.ndarray, strategies:dict=None) -> np.ndarray:
     ''' Combine Zoom, Scale and Time Warping on track data and conter to imu data.
     '''
     
     ''' compelete algorithm
-    axes = calc_local_axes(marker_pos)
     strategies = np.random.randint(0,16)
     if strategies in (1,3,5,7,9,11,13,15):
         params = scale_params(std=0.002)
         center_pos = scale(center_pos, params=params)
-        q = axes.transpose(1, 2, 0)     # rotation matrix
-        delta_q = np.matmul(np.linalg.inv(q[0,:,:])[None,:,:], q)
+        q = axes.transpose(1, 2, 0)
+        delta_q = np.matmul(q[0,:,:].transpose()[None,:,:], q)    
         scaled_rot_vec = scale(Rotation.from_matrix(delta_q).as_rotvec(), params=params)
         axes = np.matmul(q[0:1,:,:], Rotation.from_rotvec(scaled_rot_vec).as_matrix()).transpose(2,0,1)
     if strategies in (2,3,6,7,10,11,14,15):
@@ -505,7 +532,7 @@ def classic_augment_on_track(center_pos:np.ndarray, marker_pos:np.ndarray) -> np
         params = magnitude_warp_params(n_knots=6, std=0.002)
         center_pos = magnitude_warp(center_pos, axis=0, params=params)
         q = axes.transpose(1, 2, 0)     # rotation matrix
-        delta_q = np.matmul(np.linalg.inv(q[0,:,:])[None,:,:], q)
+        delta_q = np.matmul(q[0,:,:].transpose()[None,:,:], q)
         rotvec = Rotation.from_matrix(delta_q).as_rotvec()
         rotvec = magnitude_warp(rotvec, axis=0, params=params)
         axes = np.matmul(q[0:1,:,:], Rotation.from_rotvec(rotvec).as_matrix()).transpose(2,0,1)
@@ -513,34 +540,35 @@ def classic_augment_on_track(center_pos:np.ndarray, marker_pos:np.ndarray) -> np
     gyro = track_to_gyro(axes, fs=cf.FS_PREPROCESS)
     return np.concatenate([acc, gyro], axis=1)
     '''
-    
-    # test magnitude warp
-    axes = calc_local_axes(marker_pos)
-
-    strategies = np.random.randint(0,16)
-    if strategies in (1,3,5,7,9,11,13,15):
-        params = scale_params(std=0.002)
-        center_pos = scale(center_pos, params=params)
-        q = axes.transpose(1, 2, 0)     # rotation matrix
-        delta_q = np.matmul(np.linalg.inv(q[0,:,:])[None,:,:], q)
-        scaled_rot_vec = scale(Rotation.from_matrix(delta_q).as_rotvec(), params=params)
-        axes = np.matmul(q[0:1,:,:], Rotation.from_rotvec(scaled_rot_vec).as_matrix()).transpose(2,0,1)
-    if strategies in (2,3,6,7,10,11,14,15):
-        params = zoom_params(low=0.8)
-        center_pos = zoom(center_pos, axis=0, params=params)
-        axes = zoom(axes, axis=1, params=params)
-    if strategies in (4,5,6,7,12,13,14,15):
-        params = time_warp_params2(n_knots=6, std=0.1)
-        center_pos = time_warp2(center_pos, axis=0, params=params)
-        axes = time_warp2(axes, axis=1, params=params)
-    if strategies in (8,9,10,11,12,13,14,15):
-        params = magnitude_warp_params(n_knots=6, std=0.002)
-        center_pos = magnitude_warp(center_pos, axis=0, params=params)
-        q = axes.transpose(1, 2, 0)     # rotation matrix
-        delta_q = np.matmul(np.linalg.inv(q[0,:,:])[None,:,:], q)
-        rotvec = Rotation.from_matrix(delta_q).as_rotvec()
-        rotvec = magnitude_warp(rotvec, axis=0, params=params)
-        axes = np.matmul(q[0:1,:,:], Rotation.from_rotvec(rotvec).as_matrix()).transpose(2,0,1)
+    if strategies is None:
+        acc = track_to_acc(center_pos, axes, fs=cf.FS_PREPROCESS)
+        gyro = track_to_gyro(axes, fs=cf.FS_PREPROCESS)
+        return np.concatenate([acc, gyro], axis=1)
+    for strategy, param_dict in strategies.items():
+        if np.random.rand() > param_dict['prob']: continue
+        if strategy == 'scale':
+            params = scale_params(std=param_dict['std'])
+            center_pos = scale(center_pos, params=params)
+            q = axes.transpose(1, 2, 0)
+            delta_q = np.matmul(q[0,:,:].transpose()[None,:,:], q)    
+            scaled_rot_vec = scale(Rotation.from_matrix(delta_q).as_rotvec(), params=params)
+            axes = np.matmul(q[0:1,:,:], Rotation.from_rotvec(scaled_rot_vec).as_matrix()).transpose(2,0,1)
+        elif strategy == 'zoom':
+            params = zoom_params(low=param_dict['low'])
+            center_pos = zoom(center_pos, axis=0, params=params)
+            axes = zoom(axes, axis=1, params=params)
+        elif strategy == 'time warp':
+            params = time_warp_params2(n_knots=param_dict['N'], std=param_dict['std'])
+            center_pos = time_warp2(center_pos, axis=0, params=params)
+            axes = time_warp2(axes, axis=1, params=params)
+        elif strategy == 'mag warp':
+            params = magnitude_warp_params(n_knots=param_dict['N'], std=param_dict['std'])
+            center_pos = magnitude_warp(center_pos, axis=0, params=params)
+            q = axes.transpose(1, 2, 0)
+            delta_q = np.matmul(q[0,:,:].transpose()[None,:,:], q)
+            rotvec = Rotation.from_matrix(delta_q).as_rotvec()
+            rotvec = magnitude_warp(rotvec, axis=0, params=params)
+            axes = np.matmul(q[0:1,:,:], Rotation.from_rotvec(rotvec).as_matrix()).transpose(2,0,1)
         
     acc = track_to_acc(center_pos, axes, fs=cf.FS_PREPROCESS)
     gyro = track_to_gyro(axes, fs=cf.FS_PREPROCESS)

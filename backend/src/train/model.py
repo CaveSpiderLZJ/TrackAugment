@@ -235,24 +235,22 @@ class Model4(nn.Module):
     
 
 class Model5(nn.Module):
-    ''' Add more parameters based on Model4:
-        kernel_size: 1 -> 3; add two more linear layers.
+    ''' Removed frequency division from Model4, feature_channels 24 -> 6.
     '''
     
     def __init__(self) -> None:
         super().__init__()
-        feature_channels = 24
+        feature_channels = 6
         window_length = int(cf.TRAIN_DURATION * cf.FS_TRAIN)
-        self.conv1 = ConvBnAct(in_channels=feature_channels, out_channels=20, kernel_size=3, padding=1)
-        self.conv2 = ConvBnAct(in_channels=window_length, out_channels=20, kernel_size=3, padding=1)
-        self.conv3 = ConvBnAct(in_channels=20, out_channels=20, kernel_size=3, padding=1)
-        self.conv4 = ConvBnAct(in_channels=20, out_channels=20, kernel_size=3, padding=1)
-        self.conv5 = ConvBnAct(in_channels=20, out_channels=20, kernel_size=3, padding=1)
-        self.conv6 = ConvBnAct(in_channels=20, out_channels=20, kernel_size=3, padding=1)
-        self.linear1 = LinearBnDropout(400, 100, p=0.5)
-        self.linear2 = LinearBnDropout(100, 40, p=0.5)
-        self.linear3 = LinearBnDropout(40, 20, p=0.5)
-        self.linear4 = nn.Linear(20, cf.N_CLASSES)
+        self.C, self.L = 24, 32
+        self.conv1 = ConvBnAct(in_channels=feature_channels, out_channels=self.C, kernel_size=1)
+        self.conv2 = ConvBnAct(in_channels=window_length, out_channels=self.C, kernel_size=1)
+        self.conv3 = ConvBnAct(in_channels=self.C, out_channels=self.C, kernel_size=1)
+        self.conv4 = ConvBnAct(in_channels=self.C, out_channels=self.C, kernel_size=1)
+        self.conv5 = ConvBnAct(in_channels=self.C, out_channels=self.C, kernel_size=1)
+        self.conv6 = ConvBnAct(in_channels=self.C, out_channels=self.C, kernel_size=1)
+        self.linear1 = LinearBnDropout(self.C*self.C, self.L, p=0.5)
+        self.linear2 = nn.Linear(self.L, cf.N_CLASSES)
         
     
     def forward(self, x) -> torch.Tensor:
@@ -262,11 +260,9 @@ class Model5(nn.Module):
         x = (x + self.conv4(x)).transpose(1, 2)
         x = (x + self.conv5(x)).transpose(1, 2)
         x = x + self.conv6(x)
-        x = x.view(-1, 400)
+        x = x.view(-1, self.C*self.C)
         x = self.linear1(x)
         x = self.linear2(x)
-        x = self.linear3(x)
-        x = self.linear4(x)
         return x
     
     

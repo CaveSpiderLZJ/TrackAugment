@@ -3,6 +3,7 @@ import gc
 import copy
 import tqdm
 import time
+import json
 import shutil
 import pickle
 import random
@@ -22,6 +23,7 @@ import file_utils as fu
 from data_process.record import Record
 from data_process.dataset import Dataset, DataLoader
 from train.model import *
+from train.model2 import Model6
 from train.feature import feature2
 
 
@@ -30,7 +32,7 @@ def worker_init_fn(worker_id:int):
     np.random.seed(cf.RAND_SEED + worker_id)
     
     
-def build_dataloader_study1() -> Tuple[DataLoader, DataLoader]:
+def build_dataloader_study1(aug_method:str, strategies:dict) -> Tuple[DataLoader, DataLoader]:
     ''' Build train and test dataloader in study-1.
     '''
     # load task_list
@@ -126,7 +128,7 @@ def build_dataloader_study1() -> Tuple[DataLoader, DataLoader]:
         negative_data = np.concatenate(negative_data, axis=0)
         test_dataset.insert_negativa_data(negative_data, label=0)
     
-    train_dataset.augment(method=cf.AUG_METHOD)
+    train_dataset.augment(method=aug_method, strategies=strategies)
     test_dataset.augment(method=None)
     train_dataloader = DataLoader(train_dataset, batch_size=cf.batch_size,
         shuffle=True, pin_memory=True, num_workers=0, worker_init_fn=worker_init_fn)
@@ -136,21 +138,29 @@ def build_dataloader_study1() -> Tuple[DataLoader, DataLoader]:
     return train_dataloader, test_dataloader
 
 
-def build_dataloader_pilot() -> Tuple[DataLoader, DataLoader]:
+def build_dataloader(aug_method:str, class_names:tuple, strategies:dict, user_list:dict) -> Tuple[DataLoader, DataLoader]:
     ''' Build train and test dataloader in PilotRotate
     '''
-     # load task_list
-    task_list_id = 'TL2x95a1ya'
+    
+    # load task_list
+    task_list_id = 'TLm5wv3uex'
     task_list = fu.load_task_list_with_users(task_list_id)
     assert task_list is not None
     
     # build the dataset and dataloader
-    train_users = ['lzj2', 'lzj4', 'lzj6', 'lzj7']
-    val_users = ['lzj', 'lzj8']
-    test_users = ['lzj3', 'lzj5']
-    train_days = [1]
-    val_days = [2]
-    test_days = [3]
+    # train_users = ['qp', 'fqj', 'zqy', 'lhs', 'hr', 'xq', 'lxt', 'gsq', 'lzj', 'wxy', 'lc', 'fhy', 'cr']
+    # val_users = ['qwp', 'lst', 'lyf', 'mfj']
+    # test_users = ['wxb', 'hz', 'hjp', 'cjy']
+    # 7 users test
+    # train_users = ['gsq', 'wxy', 'lc', 'qp', 'hjp', 'qwp', 'cr']
+    # val_users = ['hz', 'fhy', 'cjy', 'hr', 'lxt', 'lst', 'lyf']
+    # test_users = ['zqy', 'wxb', 'lzj', 'fqj', 'mfj', 'lhs', 'xq']
+    train_users = user_list['train']
+    val_users = user_list['val']
+    test_users = user_list['test']
+    train_days = [1, 2, 3]
+    val_days = [4]
+    test_days = [6]
     train_negative_paths, val_negative_paths, test_negative_paths = [], [], []
     for day in train_days:
         train_negative_paths.extend(glob(f'../data/negative/day{day}/*.pkl'))
@@ -163,7 +173,7 @@ def build_dataloader_pilot() -> Tuple[DataLoader, DataLoader]:
     # insert positive data
     print(f'### Insert positive data.')
     record_info = []
-    for task_name, label in (('Rotate45', 1), ('Rotate90', 2), ('Rotate135', 3), ('Rotate180', 4)):
+    for task_name, label in zip(class_names[1:], (1, 2, 3, 4)):
         for task in task_list['tasks']:
             if task['name'] == task_name: break
         assert task['name'] == task_name
@@ -206,7 +216,7 @@ def build_dataloader_pilot() -> Tuple[DataLoader, DataLoader]:
             negative_data.append(pickle.load(open(path, 'rb'))[None,:W,:])
         test_dataset.insert_negativa_data(np.concatenate(negative_data, axis=0), label=0)
     
-    train_dataset.augment(method=cf.AUG_METHOD)
+    train_dataset.augment(method=aug_method, strategies=strategies)
     val_dataset.augment(method=None)
     test_dataset.augment(method=None)
     train_dataloader = DataLoader(train_dataset, batch_size=cf.BATCH_SIZE,
@@ -219,11 +229,10 @@ def build_dataloader_pilot() -> Tuple[DataLoader, DataLoader]:
     return train_dataloader, val_dataloader, test_dataloader
 
 
-def main():
+def main(model_name:str, plan:dict):
     # config parameters
-    model = Model4()
+    model = Model5()
     n_classes = cf.N_CLASSES
-    class_names = cf.CLASS_NAMES
     n_epochs = cf.N_EPOCHS
     learning_rate = cf.LEARNING_RATE
     super_batch = cf.SUPER_BATCH
@@ -231,11 +240,22 @@ def main():
     warmup_steps = cf.WARMUP_STEPS
     log_steps = cf.LOG_STEPS
     eval_steps = cf.EVAL_STEPS
-    model_save_dir = f'{cf.MODEL_ROOT}/{cf.MODEL_NAME}'
-    log_save_dir = f'{cf.LOG_ROOT}/{cf.MODEL_NAME}'
+    model_save_dir = f'{cf.MODEL_ROOT}/{model_name}'
+    log_save_dir = f'{cf.LOG_ROOT}/{model_name}'
+    output_path = f'{cf.OUTPUT_ROOT}/{cf.PLAN_NAME}/{model_name}.txt'
+    if plan['class_name'] == 'move':
+        class_names = ('Negative', 'Move10', 'Move20', 'Move30', 'Move40')
+    elif plan['class_name'] == 'rotate':
+        class_names = ('Negative', 'Rotate45', 'Rotate90', 'Rotate135', 'Rotate180')
     
     # build dataloaders
-    train_dataloader, val_dataloader, test_dataloader = build_dataloader_pilot()
+    user_list_id = 0
+    if 'user_list_id' in plan:
+        user_list_id = plan['user_list_id']
+    user_list_path = f'{cf.PLAN_ROOT}/study2_user_list.json'
+    user_list = json.load(open(user_list_path, 'r'))
+    train_dataloader, val_dataloader, test_dataloader = build_dataloader(plan['method'],
+        class_names, strategies=plan['strategies'], user_list=user_list[str(user_list_id)])
     
     # utils
     if os.path.exists(model_save_dir): shutil.rmtree(model_save_dir)
@@ -272,10 +292,11 @@ def main():
             label.append(batch['label'])
             if (i+1) % super_batch != 0 and (i+1) != len(train_dataloader):
                 continue
-            data = feature2(torch.concat(data,dim=0).transpose(1,2)).to(cf.DEVICE)
+            # data = feature2(torch.concat(data,dim=0).transpose(1,2)).to(cf.DEVICE)
+            data = torch.concat(data,dim=0).transpose(1,2).to(torch.float32).to(cf.DEVICE)
             label = torch.concat(label, dim=0).to(cf.DEVICE)
             for j in range(int(np.ceil(data.shape[0]/batch_size))):
-                output: torch.Tensor = model(data[j*batch_size:(j+1)*batch_size,:,:])
+                output: torch.Tensor = model(data[j*batch_size:(j+1)*batch_size,...])
                 loss: torch.Tensor = train_criterion(output, label[j*batch_size:(j+1)*batch_size])
                 loss.backward()
                 train_loss += loss.detach().item()
@@ -283,8 +304,8 @@ def main():
                 scheduler.step()
                 optimizer.zero_grad()
             data, label = [], []
-        if cf.AUG_METHOD is not None:
-            train_dataloader.augment(method=cf.AUG_METHOD)
+        if plan['method'] is not None and (epoch+1) % cf.AUGMENT_STEPS == 0:
+            train_dataloader.augment(method=plan['method'], strategies=plan['strategies'])
         
         # log lr and train loss
         if (epoch+1) % log_steps == 0:
@@ -305,10 +326,11 @@ def main():
                     label.append(batch['label'])
                     if (i+1) % super_batch != 0 and (i+1) != len(val_dataloader):
                         continue
-                    data = feature2(torch.concat(data,dim=0).transpose(1,2)).to(cf.DEVICE)
+                    # data = feature2(torch.concat(data,dim=0).transpose(1,2)).to(cf.DEVICE)
+                    data = torch.concat(data,dim=0).transpose(1,2).to(torch.float32).to(cf.DEVICE)
                     label = torch.concat(label, dim=0).to(cf.DEVICE)
                     for j in range(int(np.ceil(data.shape[0]/batch_size))):
-                        output: torch.Tensor = model(data[j*batch_size:(j+1)*batch_size,:,:])
+                        output: torch.Tensor = model(data[j*batch_size:(j+1)*batch_size,...])
                         label_batch = label[j*batch_size:(j+1)*batch_size]
                         val_loss: torch.Tensor = val_criterion(output, label_batch)
                         _, predicted = torch.max(output, dim=1)
@@ -345,31 +367,33 @@ def main():
             print(f'| F1-score                : {f"{100*f1_score:.3f}".rjust(6)} %' + ' '*44 + '|')
             print(f'+{"-"*79}+')
             
-            if f1_score > max_f1_score:
-                max_f1_score = f1_score
-                best_model = copy.deepcopy(model)
-                torch.save(model.state_dict(), os.path.join(model_save_dir, 'best.model'))
-            if epoch > n_epochs / 2:    # only save last half models
+            if (epoch+1) > (n_epochs//2):
+                if f1_score > max_f1_score:
+                    max_f1_score = f1_score
+                    best_model = copy.deepcopy(model)
+                    torch.save(model.state_dict(), os.path.join(model_save_dir, 'best.model'))
                 torch.save(model.state_dict(), os.path.join(model_save_dir, f'{epoch}.model'))
+                
+    fout = open(output_path, 'w')
          
-    # print general validation metrics   
+    # output general validation metrics   
     toc = time.perf_counter()
-    general_matrix = np.mean(matrices[-4:], axis=0)
-    print(f'\n### Validation performance:')
-    print(f'General matrix:')
+    general_matrix = np.mean(matrices[-8:], axis=0)
+    fout.write(f'### Validation performance:\n')
+    fout.write(f'General matrix:\n')
     for i in range(n_classes):
         row = general_matrix[i,:].copy()
         row = 100 * row / np.sum(row)
-        print(f'    Accuracy of {class_names[i]:12s}: {row[i]:.2f} % | ', end='')
-        print(' '.join([f'{item:.2f}'.rjust(5) for item in row]))
+        fout.write(f'    Accuracy of {class_names[i]:12s}: {row[i]:.2f} % | ')
+        fout.write(' '.join([f'{item:.2f}'.rjust(5) for item in row]) + '\n')
     fpr = np.sum(general_matrix[0,1:]) / np.sum(general_matrix[0,:])
     recall = np.sum(np.diag(general_matrix)[1:]) / np.sum(general_matrix[1:,:])
     precision = np.sum(np.diag(general_matrix)[1:]) / np.sum(general_matrix[:,1:])
     f1_score = (2*recall*precision) / (precision+recall)
     acc = np.sum(np.diag(general_matrix)) / np.sum(general_matrix)
-    print(f'FPR = {100*fpr:.3f}%, Accuracy = {100*acc:.3f}%')
-    print(f'Recall = {100*recall:.3f}%, Precision = {100*precision:.3f}%, F1-score = {100*f1_score:.3f}%')
-    print(f'Training time: {toc-tic:.1f} s')
+    fout.write(f'FPR = {100*fpr:.3f}%, Accuracy = {100*acc:.3f}%\n')
+    fout.write(f'Recall = {100*recall:.3f}%, Precision = {100*precision:.3f}%, F1-score = {100*f1_score:.3f}%\n')
+    fout.write(f'Training time: {toc-tic:.1f} s\n')
     
     # test model on testing dataset
     best_model.eval()
@@ -381,35 +405,45 @@ def main():
             label.append(batch['label'])
             if (i+1) % super_batch != 0 and (i+1) != len(test_dataloader):
                 continue
-            data = feature2(torch.concat(data,dim=0).transpose(1,2)).to(cf.DEVICE)
+            # data = feature2(torch.concat(data,dim=0).transpose(1,2)).to(cf.DEVICE)
+            data = torch.concat(data,dim=0).transpose(1,2).to(torch.float32).to(cf.DEVICE)
             label = torch.concat(label, dim=0).to(cf.DEVICE)
             for j in range(int(np.ceil(data.shape[0]/batch_size))):
-                output: torch.Tensor = best_model(data[j*batch_size:(j+1)*batch_size,:,:])
+                output: torch.Tensor = best_model(data[j*batch_size:(j+1)*batch_size,...])
                 label_batch = label[j*batch_size:(j+1)*batch_size]
                 _, predicted = torch.max(output, dim=1)
                 for k in range(len(label_batch)):
                     l = label_batch[k]
                     matrix[l.item(), predicted[k].item()] += 1
             data, label = [], []
-    print(f'\n### Test performance:')
-    print(f'Test matrix:')
+    fout.write(f'\n### Test performance:\n')
+    fout.write(f'Test matrix:\n')
     for i in range(n_classes):
         row = matrix[i,:].copy()
         row = 100 * row / np.sum(row)
-        print(f'    Accuracy of {class_names[i]:12s}: {row[i]:.2f} % | ', end='')
-        print(' '.join([f'{item:.2f}'.rjust(5) for item in row]))
+        fout.write(f'    Accuracy of {class_names[i]:12s}: {row[i]:.2f} % | ')
+        fout.write(' '.join([f'{item:.2f}'.rjust(5) for item in row]) + '\n')
     fpr = np.sum(matrix[0,1:]) / np.sum(matrix[0,:])
     recall = np.sum(np.diag(matrix)[1:]) / np.sum(matrix[1:,:])
     precision = np.sum(np.diag(matrix)[1:]) / np.sum(matrix[:,1:])
     f1_score = (2*recall*precision) / (precision+recall)
     acc = np.sum(np.diag(matrix)) / np.sum(matrix)
-    print(f'FPR = {100*fpr:.3f}%, Accuracy = {100*acc:.3f}%')
-    print(f'Recall = {100*recall:.3f}%, Precision = {100*precision:.3f}%, F1-score = {100*f1_score:.3f}%')
+    fout.write(f'FPR = {100*fpr:.3f}%, Accuracy = {100*acc:.3f}%\n')
+    fout.write(f'Recall = {100*recall:.3f}%, Precision = {100*precision:.3f}%, F1-score = {100*f1_score:.3f}%\n')
+    fout.close()
     
 
 if __name__ == '__main__':
-    random.seed(cf.RAND_SEED)
-    np.random.seed(cf.RAND_SEED)
-    torch.manual_seed(cf.RAND_SEED)
     fu.check_cwd()
-    main()
+    plan_path = f'{cf.PLAN_ROOT}/{cf.PLAN_NAME}.json'
+    train_plan = json.load(open(plan_path, 'r'))
+    output_dir = f'{cf.OUTPUT_ROOT}/{cf.PLAN_NAME}'
+    if os.path.exists(output_dir): shutil.rmtree(output_dir)
+    os.makedirs(output_dir)
+    for model_name, plan in train_plan.items():
+        random.seed(cf.RAND_SEED)
+        np.random.seed(cf.RAND_SEED)
+        torch.manual_seed(cf.RAND_SEED)
+        main(model_name, plan)
+    
+    

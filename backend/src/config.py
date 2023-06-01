@@ -6,6 +6,7 @@ from typing import Dict
 WORKING_DIR = 'TrackAugment/backend/src'
 
 # data preprocessing
+GRAVITY = 9.94
 FS_PREPROCESS: int = 200        # the frequency after data resampling (unified for preprocessing)
 FS_TRACK: int = 200             # the frequency of the original track data
 FS_IMU: Dict[str, int] = {      # the frequencies of the original imu sensors
@@ -33,27 +34,27 @@ CUT_DURATION: float = 2.5       # action duration after cutting (s)
 TRAIN_DURATION: float = 2.0     # action duration for training (s)
 RAND_SAMPLE_EN: bool = True     # whether to randomly sample action data from cut duration to train duration
 RAND_SAMPLE_DURATION: float = 0.2   # the random sample duration range (s), its inverse would be the real-time sample frequency.
-AUG_METHOD: str = 'classic_on_track'          # in {None, 'classic', 'classic_on_track', 'dtw'}
 
 # train
 RAND_SEED = 0
 FS_TRAIN = 100
 MODEL_ROOT = '../data/model'
 LOG_ROOT = '../data/log'
-MODEL_NAME = '273_PilotRotate_ScaleZoomTimeWarpMagWarpTrack_epoch1k_lr5e-5'
+PLAN_ROOT = '../data/plan'
+OUTPUT_ROOT = '../data/output'
+PLAN_NAME = '36_RotateTrackComb_model5_userlist0-9'
 N_CLASSES = 5
-# CLASS_NAMES = ('Negative', 'Raise', 'Drop', 'Shake', 'DoubleShake', 'Flip', 'DoubleFlip')
-CLASS_NAMES = ('Negative', 'Rotate45', 'Rotate90', 'Rotate135', 'Rotate180')
 N_TRAIN_USERS = 1   # positive, users
 N_TEST_USERS = 1
 N_TRAIN_DAYS = 1     # negative, days
 N_TEST_DAYS = 1
-N_EPOCHS = 1000
-LEARNING_RATE = 5e-5
+N_EPOCHS = 200
+LEARNING_RATE = 1e-4
 SUPER_BATCH = 10    # how many batches a super batch contains
 BATCH_SIZE = 64
 WARMUP_STEPS = 10
 LOG_STEPS = 1
 EVAL_STEPS = 5
 GC_STEPS = 4
+AUGMENT_STEPS = 2
 DEVICE = torch.device('cuda')
