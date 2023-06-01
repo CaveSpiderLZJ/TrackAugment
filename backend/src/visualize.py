@@ -40,6 +40,7 @@ COLORS = {
     'b': '#56B7EC',
     'o': '#EE8B29',
     'p': '#8051C9',
+    'black': '#000000',
 }
 
 
@@ -588,120 +589,59 @@ def visualize_cleaned_negative_data():
 
 def visualize_tsne():
     data = []
-    labels = np.zeros(0, dtype=np.int32)
-    task_list_id = 'TLnmdi15b8'
-    user_set = list(cf.USERS)
-    np.random.shuffle(user_set)
-    user_set = set(user_set)
-    days = list(range(1,76))
-    np.random.shuffle(days)
-    day_set = set(days[:25])
+    labels = []
+    task_list_id = 'TLm5wv3uex'
+    days = [1, 2, 3, 4, 6]
     negative_paths = []
-    for day in day_set:
+    for day in days:
         negative_paths.extend(glob(f'../data/negative/day{day}/*.pkl'))
     
     # load task list
     task_list = fu.load_task_list_with_users(task_list_id)
     assert task_list is not None
             
-    # load Shake, DoubleShake, Flip, DoubleFlip by users
-    print(f'### Load Shake, DoubleShake, Flip and DoubleFlip.')
-    record_info = []
-    for task_id, label in (('TK9fe2fbln', 3), ('TK5rsia9fw', 4), ('TKtvkgst8r', 5), ('TKie8k1h6r', 6)):
-        for task in task_list['tasks']:
-            if task['id'] == task_id: break
-        assert task['id'] == task_id
-        for subtask in task['subtasks']:
-            subtask_id = subtask['id']
-            record_dict = subtask['record_dict']
-            for user_name, record_id in record_dict.items():
-                if user_name not in user_set: continue
-                record_info.append((task_id, subtask_id, record_id, user_name, subtask['times'], label))
-    for task_id, subtask_id, record_id, user_name, times, label in tqdm.tqdm(record_info):
-        record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
-        try:
-            record = Record(record_path, times)
-        except:
-            print(f'### Error: {record_path}')
-            continue
-        clean_mask = record.clean_mask
-        acc_data = record.cutted_imu_data['acc']
-        gyro_data = record.cutted_imu_data['gyro']
-        imu_data = np.concatenate([acc_data, gyro_data], axis=2)[clean_mask,...]
-        imu_data = aug.down_sample_by_step(imu_data, axis=1, step=2)
-        imu_data = np.reshape(imu_data, (imu_data.shape[0], -1))
-        data.append(imu_data)
-        labels = np.concatenate([labels, np.zeros(np.sum(clean_mask), dtype=np.int32) + label])
-        
-    # load Raise and Drop
-    print(f'### Load Raise and Drop.')
-    record_info = []
-    task_id = 'TK7t3ql6jb'
-    for task in task_list['tasks']:
-        if task['id'] == task_id: break
-    assert task['id'] == task_id
-    for subtask in task['subtasks']:
-        subtask_id = subtask['id']
-        record_dict = subtask['record_dict']
-        for user_name, record_id in record_dict.items():
-            if user_name not in user_set: continue
-            record_info.append((subtask_id, record_id, user_name, subtask['times']))
-    for subtask_id, record_id, user_name, times in tqdm.tqdm(record_info):
-        record_path = fu.get_record_path(task_list_id, task_id, subtask_id, record_id)
-        try:
-            record = Record(record_path, times)
-        except:
-            print(f'### Error: {record_path}')
-            continue
-        clean_mask = record.clean_mask
-        acc_data = record.cutted_imu_data['acc']
-        gyro_data = record.cutted_imu_data['gyro']
-        imu_data = np.concatenate([acc_data, gyro_data], axis=2)[clean_mask,...]
-        imu_data = aug.down_sample_by_step(imu_data, axis=1, step=2)
-        imu_data = np.reshape(imu_data, (imu_data.shape[0], -1))
-        data.append(imu_data)
-        new_labels = np.zeros(times, dtype=np.int32) + 1
-        new_labels[1::2] = 2
-        labels = np.concatenate([labels, new_labels[clean_mask]])
+    # load positive data
+    print('### Load positive data')
+    # task_names = ['Move10', 'Move20', 'Move30', 'Move40']
+    # task_names_zh = ['移动 10 厘米', '移动 20 厘米', '移动 30 厘米', '移动 40 厘米']
+    task_names = ['Rotate45', 'Rotate90', 'Rotate135', 'Rotate180']
+    task_names_zh = ['旋转 45 度', '旋转 90 度', '旋转 135 度', '旋转 180 度']
     
-    # load negative data
-    print(f'### Load Negative.')
-    batch = 100
-    W = int(cf.FS_PREPROCESS * cf.CUT_DURATION)
-    for i in tqdm.trange(int(np.ceil(len(negative_paths)/batch))):
-        negative_data = []
-        for path in negative_paths[i*batch:(i+1)*batch]:
-            item = pickle.load(open(path, 'rb'))
-            negative_data.append(item[None,:W,:])
-        negative_data = np.concatenate(negative_data, axis=0)
-        negative_data = aug.down_sample_by_step(negative_data, axis=1, step=2)
-        negative_data = np.reshape(negative_data, (negative_data.shape[0], -1))
-        data.append(negative_data)
-        labels = np.concatenate([labels, np.zeros(negative_data.shape[0], dtype=np.int32)])
+    for task_name, label in zip(task_names, (1, 2, 3, 4)):
+        for task in task_list['tasks']:
+            if task['name'] == task_name: break
+        assert task['name'] == task_name
+        for subtask in task['subtasks']:
+            for record_id in list(subtask['record_dict'].values()):
+                record_path = fu.get_record_path(task_list_id, task['id'], subtask['id'], record_id)
+                record = Record(record_path, n_sample=20)
+                imu_data = record.cutted_imu_data
+                acc = imu_data['acc']
+                gyro = imu_data['gyro']
+                imu = np.concatenate([acc, gyro], axis=2)
+                imu = aug.down_sample_by_step(imu, axis=1, step=2)
+                data.append(imu)
+                labels.append(np.zeros(imu.shape[0], dtype=np.int32) + label)
+    
     data = np.concatenate(data, axis=0)
+    data = np.reshape(data, (data.shape[0], -1))
+    labels = np.concatenate(labels, axis=0)
     
     # plot t-SNE graph
-    color_map = {0:'black', 1:'red', 2:'orange', 3:'green', 4:'blue', 5:'purple', 6:'pink'}
-    colors = [color_map[i] for i in labels]
+    plt.figure(figsize=(8, 6))
+    color_map = {0:'black', 1:'r', 2:'o', 3:'g', 4:'b'}
     tic = time.perf_counter()
     tsne = TSNE()
     embedded = tsne.fit_transform(data)
     toc = time.perf_counter()
     print(f'### t-SNE time cost: {toc-tic:.3f} s')
-    plt.scatter(embedded[:,0], embedded[:,1], c=colors, s=1)
-    plt.show()
-    
-    
-def visualize_data_distribution():
-    task_list_id = f'TLnmdi15b8'
-    task_id, n_sample = f'TKtvkgst8r', 20
-    paths = glob(f'{fu.DATA_RECORD_ROOT}/{task_list_id}/{task_id}/ST*/RD*')
-    for path in tqdm.tqdm(paths):
-        record = Record(path, n_sample)
-        gyro = record.cutted_imu_data['gyro']
-        for i in range(gyro.shape[0]):
-            for j in range(3):
-                plt.plot(gyro[i,:,j])
+    for label in (1, 2, 3, 4):
+        plt.scatter(embedded[(labels==label),0], embedded[(labels==label),1], c=COLORS[color_map[label]], s=1)
+    # plt.scatter(embedded[:,0], embedded[:,1], c=[COLORS[color] for color in colors], s=1)
+    plt.legend(task_names_zh, loc='lower right')
+    plt.grid('both', linestyle='--')
+    plt.xlabel('t-SNE x', fontsize=14)
+    plt.ylabel('t-SNE y', fontsize=14)
     plt.show()
     
     
@@ -935,8 +875,9 @@ def visualize_move():
 def visualize_move_distance():
     ''' Visualize the actual move distance of the action samples.
     '''
-    task_list = fu.load_task_list_with_users('TL3wni1oq3')
-    task_names = ['Move10cm', 'Move20cm', 'Move30cm', 'Move40cm', 'Move50cm']
+    task_list = fu.load_task_list_with_users('TLm5wv3uex')
+    task_names = ['Move10', 'Move20', 'Move30', 'Move40']
+    task_names_zh = ['移动 10 厘米', '移动 20 厘米', '移动 30 厘米', '移动 40 厘米']
     distance = {task_name: [] for task_name in task_names}
     for task_name in task_names:
         for task in task_list['tasks']:
@@ -949,15 +890,56 @@ def visualize_move_distance():
             center_pos = track_data['center_pos']
             for i in range(center_pos.shape[0]):
                 dis = np.max(center_pos[i,:,0]) - np.min(center_pos[i,:,0])
-                distance[task_name].append(dis)
+                distance[task_name].append(dis * 100)
     for task_name in task_names:
         dis_arr = distance[task_name]
-        print(f'{task_name}: M = {np.mean(dis_arr):.3f}, SD = {np.std(dis_arr,ddof=1):.3f}')
-    plt.violinplot([distance[task_name] for task_name in task_names], positions=range(5))
-    plt.xticks(ticks=range(5), labels=task_names, fontsize=14)
+        print(f'{task_name}: M = {np.mean(dis_arr):.2f}, SD = {np.std(dis_arr,ddof=1):.2f}')
+    plt.figure(figsize=(8, 6))
+    plt.violinplot([distance[task_name] for task_name in task_names], positions=range(4))
+    plt.xticks(ticks=range(4), labels=task_names_zh, fontsize=14)
     plt.grid(axis='both', linestyle='--')
-    plt.ylabel('Distance (m)', fontsize=14)
-    plt.title('Moving distance distributions', fontsize=16)
+    plt.ylabel('移动距离 (cm)', fontsize=14)
+    plt.ylim(0, 60)
+    plt.show()
+    
+
+def visualize_rotate_angle():
+    ''' Visualize the actual rotate angle of the action samples.
+    '''
+    task_list = fu.load_task_list_with_users('TLm5wv3uex')
+    task_names = ['Rotate45', 'Rotate90', 'Rotate135', 'Rotate180']
+    task_names_zh = ['旋转 45 度', '旋转 90 度', '旋转 135 度', '旋转 180 度']
+    angles = {task_name: [] for task_name in task_names}
+    for task_name in task_names:
+        for task in task_list['tasks']:
+            if task['name'] == task_name: break
+        assert task['name'] == task_name
+        record_paths = glob(f'../data/record/{task_list["id"]}/{task["id"]}/ST*/RD*')
+        for record_path in record_paths:
+            record = Record(record_path, n_sample=20)
+            track_data = record.cutted_track_data
+            marker_pos = track_data['marker_pos']
+            for i in range(marker_pos.shape[0]):
+                axes = aug.calc_local_axes(marker_pos[i,...])
+                q = axes.transpose(1,2,0)
+                q = np.matmul(q, q[0,:,:].transpose())
+                rot_vec = Rotation.from_matrix(q).as_rotvec()
+                mask = rot_vec[:,2] > 1
+                norm = np.sqrt(np.sum(np.square(rot_vec), axis=1))
+                norm[mask] = 2 * np.pi - norm[mask]
+                angle = np.max(norm) * 180 / np.pi
+                angles[task_name].append(angle)
+                
+    for task_name in task_names:
+        angle_arr = angles[task_name]
+        print(f'{task_name}: M = {np.mean(angle_arr):.2f}, SD = {np.std(angle_arr,ddof=1):.2f}')
+    
+    plt.figure(figsize=(8, 6))
+    plt.violinplot([angles[task_name] for task_name in task_names], positions=range(4))
+    plt.xticks(ticks=range(4), labels=task_names_zh, fontsize=14)
+    plt.grid(axis='both', linestyle='--')
+    plt.ylabel('旋转角度 (度)', fontsize=14)
+    plt.ylim(0, 240)
     plt.show()
    
    
@@ -984,4 +966,5 @@ if __name__ == '__main__':
     # toc = time.perf_counter()
     # print(f'time: {(toc-tic)*1000:.3f} ms')
     
-    model_structure()
+    visualize_tsne()
+    
