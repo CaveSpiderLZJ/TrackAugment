@@ -14,7 +14,7 @@ from torch.utils.tensorboard import SummaryWriter
 import file_utils as fu
 from data_process.record import Record
 from data_process.dataset import Dataset, DataLoader
-from train.generative_model import VAE, VAE2
+from train.generative_model import *
             
 
 def build_dataloaders(train_users:list, val_users:list) -> Tuple[DataLoader, DataLoader]:
@@ -29,7 +29,7 @@ def build_dataloaders(train_users:list, val_users:list) -> Tuple[DataLoader, Dat
     # insert positive data
     print(f'### Insert positive data.')
     record_info = []
-    for task_name, label in zip(class_names[1:], (1, 2, 3, 4)):
+    for task_name, label in zip(class_names, (0, 1, 2, 3)):
         for task in task_list['tasks']:
             if task['name'] == task_name: break
         assert task['name'] == task_name
@@ -182,12 +182,163 @@ def inference():
     plt.show()
     
     
+def train_cgan():
+    train_users = ['gsq', 'wxy', 'lc', 'qp', 'hjp', 'qwp', 'cr', 'hz', 'cjy',
+        'hr', 'lxt', 'lst', 'lyf', 'zqy', 'wxb', 'lzj', 'fqj', 'mfj', 'lhs', 'xq']
+    val_users = ['fhy']
+    # train_users = ['gsq']
+    # val_users = ['zqy']
+    train_dataloader, val_dataloader = build_dataloaders(train_users, val_users)
+    
+    # config parameters
+    n_epochs = 100
+    learning_rate = 5e-3
+    model_name = 'cgan2'
+    log_save_dir = f'../data/log/gan/{model_name}'
+    model_save_dir = f'../data/model/gan/{model_name}'
+    
+    # make dirs
+    if os.path.exists(log_save_dir): shutil.rmtree(log_save_dir)
+    os.makedirs(log_save_dir)
+    if os.path.exists(model_save_dir): shutil.rmtree(model_save_dir)
+    os.makedirs(model_save_dir)
+    
+    # utils
+    device = torch.device('cpu')
+    model_g = ConditionalGenerator2()
+    model_d = ConditionalDiscriminator2()
+    criterion = nn.BCELoss()
+    optimizer_g = torch.optim.Adam(model_g.parameters(), lr=learning_rate)
+    optimizer_d = torch.optim.Adam(model_d.parameters(), lr=learning_rate)
+    train_steps = len(train_dataloader) * n_epochs
+    scheduler_g = torch.optim.lr_scheduler.LinearLR(optimizer_g,
+        start_factor=1.0, end_factor=1/train_steps, total_iters=train_steps)
+    scheduler_d = torch.optim.lr_scheduler.LinearLR(optimizer_d,
+        start_factor=1.0, end_factor=1/train_steps, total_iters=train_steps)
+    logger = SummaryWriter(log_save_dir)
+
+    optimizer_g.zero_grad()
+    optimizer_d.zero_grad()
+    for epoch in range(n_epochs):
+        mean_loss_g = []
+        mean_loss_d = []
+        mean_d_x = []
+        mean_d_g_z1 = []
+        mean_d_g_z2 = []
+        for _, batch in enumerate(train_dataloader):
+            data = batch['data'].transpose(1, 2)
+            label = batch['label']
+            # (1) Update D with real data
+            model_d.zero_grad()
+            b_size = data.shape[0]
+            real_x = data.to(device)
+            real_y = torch.zeros((b_size, 4), dtype=torch.float32)
+            real_y[range(b_size), label] = 1.0
+            output = model_d(real_x, real_y).view(-1)
+            target = torch.ones((b_size,), dtype=torch.float32)
+            loss_d_real = criterion(output, target)
+            loss_d_real.backward()
+            d_x = output.mean().item()
+            # (2) Update the discriminator with fake data
+            noise = torch.randn(b_size, 46, device=device)
+            fake_x = model_g(noise, real_y)
+            target = target.fill_(0.0)
+            output = model_d(fake_x.detach(), real_y).view(-1)
+            loss_d_fake = criterion(output, target)
+            loss_d_fake.backward()
+            d_g_z1 = output.mean().item()
+            loss_d = loss_d_real + loss_d_fake
+            optimizer_d.step()
+            scheduler_d.step()
+            # (3) Update the generator with fake data
+            model_g.zero_grad()
+            output = model_d(fake_x, real_y).view(-1)
+            target.fill_(1.0)
+            loss_g = criterion(output, target)
+            loss_g.backward()
+            d_g_z2 = output.mean().item()
+            optimizer_g.step()
+            scheduler_g.step()
+            # log metrics
+            mean_loss_g.append(loss_g.item())
+            mean_loss_d.append(loss_d.item())
+            mean_d_x.append(d_x)
+            mean_d_g_z1.append(d_g_z1)
+            mean_d_g_z2.append(d_g_z2)
+        mean_loss_g = np.mean(mean_loss_g)
+        mean_loss_d = np.mean(mean_loss_d)
+        mean_d_x = np.mean(mean_d_x)
+        mean_d_g_z1 = np.mean(mean_d_g_z1)
+        mean_d_g_z2 = np.mean(mean_d_g_z2)
+        logger.add_scalar('Loss G', mean_loss_g, epoch)
+        logger.add_scalar('Loss D', mean_loss_d, epoch)
+        logger.add_scalar('D(x)', mean_d_x, epoch)
+        logger.add_scalar('D(G)1', mean_d_g_z1, epoch)
+        logger.add_scalar('D(G)2', mean_d_g_z2, epoch)
+        print(f'epoch: {epoch}, loss_g: {mean_loss_g:.3e}, loss_d: {mean_loss_d:.3e}, '
+            + f'D(x): {mean_d_x:.3e}, D(G(x)): {mean_d_g_z1:.3e} / {mean_d_g_z2:.3e}')
+    # save model
+    torch.save(model_g.state_dict(), f'{model_save_dir}/generator.model')
+    torch.save(model_d.state_dict(), f'{model_save_dir}/discriminator.model')
+    
+    
+def inference_cgan():
+    state_dict = torch.load('../data/model/gan/cgan2/generator.model')
+    model = ConditionalGenerator2()
+    model.load_state_dict(state_dict)
+    model.eval()
+    
+    label = 3
+    x = torch.randn(8, 46, dtype=torch.float32)
+    y = torch.zeros(8, 4, dtype=torch.float32)
+    y[:, label] = 1.0
+    output = model(x, y).detach().numpy()
+
+    for i, imu in enumerate(output):
+        idx = i+1 if i < 4 else i+5
+        plt.subplot(4, 4, idx)
+        for j in range(3): plt.plot(imu[j, :])
+        plt.ylim(-15, 15)
+        plt.subplot(4, 4, idx + 4)
+        for j in range(3): plt.plot(imu[j+3, :])
+        plt.ylim(-5, 5)
+    plt.show()
+    
+    
 if __name__ == '__main__':
     fu.check_cwd()
     random.seed(0)
     np.random.seed(0)
     torch.random.manual_seed(0)
     
-    train()
+    # train()
     # inference()
+    train_cgan()
+    # inference_cgan()
+    
+    # train_users = ['gsq', 'wxy', 'lc', 'qp', 'hjp', 'qwp', 'cr', 'hz', 'cjy',
+    #     'hr', 'lxt', 'lst', 'lyf', 'zqy', 'wxb', 'lzj', 'fqj', 'mfj', 'lhs', 'xq']
+    # # train_users = ['gsq']
+    # val_users = ['fhy']
+    # train_dataloader, val_dataloader = build_dataloaders(train_users, val_users)
+    
+    # for target_label in range(4):
+    #     imu_list = []
+    #     for i, batch in enumerate(train_dataloader):
+    #         data = batch['data'].numpy().transpose(0,2,1)
+    #         label = batch['label'].numpy()
+    #         for j in range(label.shape[0]):
+    #             if label[j] == target_label:
+    #                 imu_list.append(data[j,:,:])
+    #         if len(imu_list) >= 8: break
         
+    #     for i, imu in enumerate(imu_list[:8]):
+    #         idx = i+1 if i < 4 else i+5
+    #         plt.subplot(4, 4, idx)
+    #         for j in range(3): plt.plot(imu[j, :])
+    #         plt.ylim(-15, 15)
+    #         plt.subplot(4, 4, idx + 4)
+    #         for j in range(3): plt.plot(imu[j+3, :])
+    #         plt.ylim(-5, 5)
+    #     plt.suptitle(f'Label: {target_label}')
+    #     plt.show()
